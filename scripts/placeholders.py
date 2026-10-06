@@ -9,9 +9,9 @@ explicit PLACEHOLDER files and logs them in docs/A_TODO.md.
 
 from pathlib import Path
 import shutil
-from site_config import SITE, ROOT_DIR
+from site_config import SIKKIM_SITE, ROOT_DIR
 
-DATA_DIR = SITE["data_dir"]
+DATA_DIR = SIKKIM_SITE["data_dir"]
 DOCS_DIR = ROOT_DIR / "docs"
 TODO_FILE = DOCS_DIR / "A_TODO.md"
 

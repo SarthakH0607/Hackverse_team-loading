@@ -13,9 +13,9 @@ import rasterio
 from rasterio import features
 from rasterio.warp import reproject, Resampling
 import matplotlib.pyplot as plt
-from site_config import SITE
+from site_config import SIKKIM_SITE
 
-DATA_DIR = SITE["data_dir"]
+DATA_DIR = SIKKIM_SITE["data_dir"]
 REF_TIF = DATA_DIR / "reference_sikkim.tif"
 REF_GEOJSON = DATA_DIR / "reference_sikkim.geojson"
 THRESH_MASK_PATH = DATA_DIR / "change_mask.tif"

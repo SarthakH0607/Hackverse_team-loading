@@ -18,12 +18,12 @@ from sklearn.model_selection import train_test_split
 from sklearn.metrics import precision_recall_fscore_support
 import matplotlib.pyplot as plt
 from PIL import Image
-from site_config import SITE
+from site_config import SIKKIM_SITE
 
-DATA_DIR = SITE["data_dir"]
+DATA_DIR = SIKKIM_SITE["data_dir"]
 PRE_PATH = DATA_DIR / "sikkim_pre.tif"
 POST_PATH = DATA_DIR / "sikkim_post.tif"
-SRTM_PATH = DATA_DIR / SITE["dem_file"]
+SRTM_PATH = DATA_DIR / SIKKIM_SITE["dem_file"]
 BASE_MASK_PATH = DATA_DIR / "change_mask.tif"
 PROB_TIF = DATA_DIR / "ml_probability.tif"
 ML_MASK_TIF = DATA_DIR / "ml_mask.tif"
