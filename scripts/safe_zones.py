@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-safe_zones.py - Identify post-disaster safe zones in the Sikkim / Teesta valley region.
+safe_zones.py - Identify post-disaster safe zones in the region.
 
 Criteria for a safe zone:
   1. Terrain slope < 15 degrees   (from SRTM DEM)
@@ -9,10 +9,10 @@ Criteria for a safe zone:
 
 Data sources:
   - OpenStreetMap (via osmnx / Overpass) -> roads, hospitals, shelters/schools, villages, rivers
-  - data/sikkim_srtm.tif                -> SRTM 30 m DEM
+  - SRTM 30 m DEM (configured in site_config.py)
 
 Output:
-  data/safe_zones.geojson               -> GeoJSON with fields: name, type, lat, lon
+  data/safe_zones.geojson & frontend/public/data/safe_zones.geojson
 """
 
 import json
@@ -33,21 +33,31 @@ from shapely.ops import unary_union
 
 warnings.filterwarnings("ignore")
 
-# -- Configuration ------------------------------------------------------------
-BBOX = (88.30, 27.15, 88.75, 27.75)        # west, south, east, north
-WEST, SOUTH, EAST, NORTH = BBOX
+# Ensure repository root is on sys.path
+ROOT_DIR = Path(__file__).resolve().parent.parent
+if str(ROOT_DIR) not in sys.path:
+    sys.path.insert(0, str(ROOT_DIR))
+if str(ROOT_DIR / "scripts") not in sys.path:
+    sys.path.insert(0, str(ROOT_DIR / "scripts"))
+
+try:
+    from scripts.site_config import SITE
+except ImportError:
+    from site_config import SITE
+
+# -- Read parameters strictly from site_config --------------------------------
+WEST, SOUTH, EAST, NORTH = SITE["bbox"]
+CRS_METRIC = SITE["utm_epsg"]
+DATA_DIR = Path(SITE["data_dir"])
+FRONTEND_DIR = Path(SITE["frontend_dir"])
+DEM_PATH = DATA_DIR / SITE["dem_file"]
+SAFE_ZONES_FILENAME = SITE.get("safe_zones_file", "safe_zones.geojson" if SITE.get("name") == "sikkim" else f"{SITE.get('name')}_safe_zones.geojson")
+OUTPUT_PATH = DATA_DIR / SAFE_ZONES_FILENAME
+FRONTEND_OUTPUT_PATH = FRONTEND_DIR / SAFE_ZONES_FILENAME
 
 SLOPE_THRESHOLD_DEG = 15.0     # maximum safe slope (degrees)
 RIVER_BUFFER_M      = 200.0    # minimum distance from rivers (metres)
 ROAD_BUFFER_M       = 500.0    # maximum distance to a road (metres)
-
-ROOT_DIR   = Path(__file__).resolve().parent.parent
-DATA_DIR   = ROOT_DIR / "data"
-DEM_PATH   = DATA_DIR / "sikkim_srtm.tif"
-OUTPUT_PATH = DATA_DIR / "safe_zones.geojson"
-
-# UTM zone 45N covers Sikkim - used for accurate metre-based buffering
-CRS_METRIC = "EPSG:32645"
 
 # Configure osmnx
 ox.settings.http_user_agent = "PostDisasterIntelligence/1.0 (disaster-relief; contact@relief.org)"
@@ -76,19 +86,15 @@ def compute_slope_degrees(dem_path: Path) -> tuple:
         crs = src.crs
         nodata = src.nodata
 
-    # Mask nodata
     if nodata is not None:
         dem[dem == nodata] = np.nan
 
-    # Pixel resolution in metres (approximate for geographic CRS)
-    # At ~27 deg N, 1 deg lat ~ 111,320 m, 1 deg lon ~ cos(27)*111,320 ~ 99,150 m
     res_y = abs(transform.e)
     res_x = abs(transform.a)
     lat_centre = (NORTH + SOUTH) / 2.0
     dy = res_y * 111_320.0
     dx = res_x * 111_320.0 * np.cos(np.radians(lat_centre))
 
-    # Gradient -> slope in degrees
     grad_y, grad_x = np.gradient(dem, dy, dx)
     slope = np.degrees(np.arctan(np.sqrt(grad_x**2 + grad_y**2)))
 
@@ -101,44 +107,56 @@ def compute_slope_degrees(dem_path: Path) -> tuple:
 OVERPASS_SERVERS = [
     "https://overpass-api.de/api/interpreter",
     "https://overpass.kumi.systems/api/interpreter",
-    "https://lz4.overpass-api.de/api/interpreter",
+    "https://overpass.private.coffee/api/interpreter",
 ]
 
 def fetch_osm_data_batch() -> tuple[gpd.GeoDataFrame, gpd.GeoDataFrame, gpd.GeoDataFrame, gpd.GeoDataFrame, gpd.GeoDataFrame, gpd.GeoDataFrame]:
     """
-    Fetches roads, rivers, hospitals, shelters/schools, villages, and water sources
-    in a single comprehensive Overpass API request with geometric coordinates.
+    Fetches roads, rivers, hospitals, shelters/schools, villages, and water sources.
+    Checks data/osm_cache/ first. If cached GPKGs exist, loads them directly.
     """
-    _log("Querying OpenStreetMap data for Sikkim bounding box...")
+    cache_dir = DATA_DIR / "osm_cache"
+    site_name = SITE.get("name", "sikkim")
+    mode = "full"
+    
+    roads_cache = cache_dir / f"{site_name}_{mode}_roads.gpkg"
+    rivers_cache = cache_dir / f"{site_name}_{mode}_rivers.gpkg"
+    hosp_cache = cache_dir / f"{site_name}_{mode}_hospitals.gpkg"
+    villages_cache = cache_dir / f"{site_name}_{mode}_villages.gpkg"
 
-    query = f"""
-    [out:json][timeout:90];
-    (
-      // Roads
-      way["highway"~"primary|secondary|tertiary|trunk|motorway|residential|unclassified|service|track"]({SOUTH},{WEST},{NORTH},{EAST});
-      
-      // Rivers & Waterways
-      way["waterway"~"river|stream|canal"]({SOUTH},{WEST},{NORTH},{EAST});
-      relation["waterway"~"river|stream|canal"]({SOUTH},{WEST},{NORTH},{EAST});
-      
-      // Hospitals & Health facilities
-      node["amenity"~"hospital|clinic|doctors"]({SOUTH},{WEST},{NORTH},{EAST});
-      way["amenity"~"hospital|clinic|doctors"]({SOUTH},{WEST},{NORTH},{EAST});
-      
-      // Shelters, Schools, Community Centres, Places of Worship
-      node["amenity"~"shelter|school|community_centre|place_of_worship|kindergarten|college"]({SOUTH},{WEST},{NORTH},{EAST});
-      way["amenity"~"shelter|school|community_centre|place_of_worship|kindergarten|college"]({SOUTH},{WEST},{NORTH},{EAST});
-      
-      // Villages & Settlements
-      node["place"~"village|hamlet|town|isolated_dwelling"]({SOUTH},{WEST},{NORTH},{EAST});
-      
-      // Drinking water / Safe water sources
-      node["amenity"~"drinking_water|water_point"]({SOUTH},{WEST},{NORTH},{EAST});
-      node["man_made"~"water_well|water_tap|spring_box"]({SOUTH},{WEST},{NORTH},{EAST});
-      node["natural"="spring"]({SOUTH},{WEST},{NORTH},{EAST});
-    );
-    out body geom;
-    """
+    if roads_cache.exists() and rivers_cache.exists() and hosp_cache.exists() and villages_cache.exists():
+        _log(f"Loading OSM layers from cache in {cache_dir} ...")
+        roads_gdf = gpd.read_file(roads_cache)
+        rivers_gdf = gpd.read_file(rivers_cache)
+        hospitals_gdf = gpd.read_file(hosp_cache)
+        villages_gdf = gpd.read_file(villages_cache)
+        
+        # Shelters and water points from villages and hospitals or fallback
+        shelters_gdf = villages_gdf.copy()
+        water_gdf = gpd.GeoDataFrame(geometry=[], crs="EPSG:4326")
+        
+        _log(f"  Loaded cached layers: {len(roads_gdf)} roads, {len(rivers_gdf)} rivers, {len(hospitals_gdf)} hospitals, {len(villages_gdf)} settlements")
+        return roads_gdf, rivers_gdf, hospitals_gdf, shelters_gdf, villages_gdf, water_gdf
+
+    _log(f"Querying OpenStreetMap data for bounding box ({WEST:.2f}, {SOUTH:.2f}, {EAST:.2f}, {NORTH:.2f})...")
+
+    query = (
+        f"[out:json][timeout:90];\n"
+        f"(\n"
+        f"  way[\"highway\"~\"primary|secondary|tertiary|trunk|motorway|residential|unclassified|service|track\"]({SOUTH},{WEST},{NORTH},{EAST});\n"
+        f"  way[\"waterway\"~\"river|stream|canal\"]({SOUTH},{WEST},{NORTH},{EAST});\n"
+        f"  relation[\"waterway\"~\"river|stream|canal\"]({SOUTH},{WEST},{NORTH},{EAST});\n"
+        f"  node[\"amenity\"~\"hospital|clinic|doctors\"]({SOUTH},{WEST},{NORTH},{EAST});\n"
+        f"  way[\"amenity\"~\"hospital|clinic|doctors\"]({SOUTH},{WEST},{NORTH},{EAST});\n"
+        f"  node[\"amenity\"~\"shelter|school|community_centre|place_of_worship|kindergarten|college\"]({SOUTH},{WEST},{NORTH},{EAST});\n"
+        f"  way[\"amenity\"~\"shelter|school|community_centre|place_of_worship|kindergarten|college\"]({SOUTH},{WEST},{NORTH},{EAST});\n"
+        f"  node[\"place\"~\"village|hamlet|town|isolated_dwelling\"]({SOUTH},{WEST},{NORTH},{EAST});\n"
+        f"  node[\"amenity\"~\"drinking_water|water_point\"]({SOUTH},{WEST},{NORTH},{EAST});\n"
+        f"  node[\"man_made\"~\"water_well|water_tap|spring_box\"]({SOUTH},{WEST},{NORTH},{EAST});\n"
+        f"  node[\"natural\"=\"spring\"]({SOUTH},{WEST},{NORTH},{EAST});\n"
+        f");\n"
+        f"out body geom;\n"
+    )
 
     headers = {
         "User-Agent": "PostDisasterIntelligence/1.0 (disaster-relief; contact@relief.org)",
@@ -148,16 +166,14 @@ def fetch_osm_data_batch() -> tuple[gpd.GeoDataFrame, gpd.GeoDataFrame, gpd.GeoD
     for server in OVERPASS_SERVERS:
         try:
             _log(f"  Attempting query via {server} ...")
-            resp = requests.post(server, data={"data": query}, headers=headers, timeout=45)
+            resp = requests.post(server, data={"data": query}, headers=headers, timeout=25)
             if resp.status_code == 200:
                 data = resp.json()
                 _log(f"  -> Successfully retrieved {len(data.get('elements', []))} OSM elements")
                 break
-            else:
-                _log(f"  [WARN] Server responded with status {resp.status_code}")
         except Exception as e:
             _log(f"  [WARN] Query failed on {server}: {e}")
-            time.sleep(2)
+            time.sleep(1)
 
     if not data or "elements" not in data:
         _log("  [WARN] Direct Overpass query failed. Falling back to osmnx download ...")
@@ -187,7 +203,6 @@ def parse_overpass_elements(elements: list) -> tuple:
         elif el_type in ("way", "relation") and "geometry" in el:
             pts = [(p["lon"], p["lat"]) for p in el["geometry"]]
             if len(pts) >= 2:
-                # Check if it's a closed polygon
                 if pts[0] == pts[-1] and len(pts) >= 4 and ("amenity" in tags or "building" in tags):
                     geom = Polygon(pts)
                 else:
@@ -198,7 +213,6 @@ def parse_overpass_elements(elements: list) -> tuple:
 
         name = tags.get("name") or tags.get("name:en") or tags.get("official_name") or tags.get("alt_name") or "Unnamed"
 
-        # Categorize
         if "highway" in tags:
             roads_list.append({"name": name, "geometry": geom})
         if "waterway" in tags:
@@ -262,6 +276,17 @@ def fallback_osmnx_downloads() -> tuple:
 
 
 # -- Spatial filters ----------------------------------------------------------
+
+def point_is_in_change_mask(point: Point, mask: np.ndarray, transform) -> bool:
+    """Check whether a point lies inside a changed pixel (mask == 1)."""
+    try:
+        r, c = rowcol(transform, point.x, point.y)
+        if 0 <= r < mask.shape[0] and 0 <= c < mask.shape[1]:
+            return bool(mask[r, c] == 1)
+    except Exception:
+        pass
+    return False
+
 
 def point_passes_slope(point: Point, slope: np.ndarray, transform) -> bool:
     """Check whether a point lies on a DEM pixel with slope < threshold."""
@@ -376,7 +401,22 @@ def main() -> None:
     cand_gdf = filter_by_road_distance(cand_gdf, roads, ROAD_BUFFER_M)
     _log(f"  -> {len(cand_gdf)} pass < {ROAD_BUFFER_M} m from road")
 
-    # 7. Add lat / lon columns & deduplicate
+    # 7. Filter - change mask exclusion (remove safe zones inside flooded/changed areas)
+    mask_fname = SITE.get("change_mask_file", "change_mask.tif" if SITE.get("name") == "sikkim" else f"{SITE.get('name')}_change_mask.tif")
+    mask_file = DATA_DIR / mask_fname if (DATA_DIR / mask_fname).exists() else (DATA_DIR / f"{SITE.get('name')}_dummy_change_mask.tif")
+    if mask_file.exists():
+        _log(f"Filtering safe zones against change mask ({mask_file.name}) ...")
+        with rasterio.open(mask_file) as mask_src:
+            mask_arr = mask_src.read(1)
+            mask_transform = mask_src.transform
+        
+        outside_mask = cand_gdf.geometry.apply(
+            lambda pt: not point_is_in_change_mask(pt, mask_arr, mask_transform)
+        )
+        cand_gdf = cand_gdf.loc[outside_mask].copy()
+        _log(f"  -> {len(cand_gdf)} pass outside active change mask")
+
+    # 8. Add lat / lon columns & deduplicate
     cand_gdf["lon"] = np.round(cand_gdf.geometry.x, 6)
     cand_gdf["lat"] = np.round(cand_gdf.geometry.y, 6)
 
@@ -388,10 +428,17 @@ def main() -> None:
     result = result.drop_duplicates(subset=["lat", "lon"])
     _log(f"Final safe zones: {len(result)}")
 
-    # 8. Save output
+    # 8. Save output to data/ and frontend/
     DATA_DIR.mkdir(parents=True, exist_ok=True)
     result.to_file(OUTPUT_PATH, driver="GeoJSON")
     _log(f"Saved -> {OUTPUT_PATH}")
+
+    try:
+        FRONTEND_DIR.mkdir(parents=True, exist_ok=True)
+        result.to_file(FRONTEND_OUTPUT_PATH, driver="GeoJSON")
+        _log(f"Saved -> {FRONTEND_OUTPUT_PATH}")
+    except Exception as e:
+        _log(f"  [WARN] Could not copy to frontend dir: {e}")
 
     # Summary
     _log("-- Summary --")

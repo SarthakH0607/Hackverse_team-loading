@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 rank_villages.py - Prioritize disaster-affected villages based on satellite change masks,
-population estimates, road blockage severity, and hospital accessibility.
+population estimates, road blockage severity, hospital accessibility, and model confidence.
 
 Run from repository root:
     python scripts/rank_villages.py
@@ -22,6 +22,7 @@ import rasterio
 from rasterio.features import rasterize
 from rasterio.mask import mask as rasterio_mask
 from rasterio.transform import rowcol
+from rasterio.warp import reproject, Resampling
 import requests
 from shapely.geometry import Point, LineString, Polygon, mapping
 from shapely.ops import unary_union
@@ -42,8 +43,12 @@ except ImportError:
 
 
 # =============================================================================
-# NAMED CONSTANTS & POPULATION WEIGHTS
+# NAMED CONSTANTS & CONFIGURATION
 # =============================================================================
+
+# Primary confidence raster filename (switchable here; checked first, falls back to fallback if absent)
+CONFIDENCE_RASTER_FILE = "ml_probability.tif"
+FALLBACK_CONFIDENCE_RASTER_FILE = "confidence.tif"
 
 POPULATION_BY_PLACE = {
     "town": 5000,
@@ -90,7 +95,6 @@ def download_and_cache_osm(site_name: str, mode: str, bbox: tuple, data_dir: Pat
 
     _log(f"Fetching OSM data for bounding box ({west:.2f}, {south:.2f}, {east:.2f}, {north:.2f})...")
 
-    # Construct clean Overpass QL
     query = (
         f"[out:json][timeout:60];\n"
         f"(\n"
@@ -204,71 +208,147 @@ def load_cached_osm_layers(site_name: str, mode: str, bbox: tuple, data_dir: Pat
     return download_and_cache_osm(site_name, mode, bbox, data_dir)
 
 
-def get_change_mask_dataset(data_dir: Path, rivers_gdf: gpd.GeoDataFrame, utm_epsg: str) -> tuple[np.ndarray, rasterio.Affine, str, rasterio.io.DatasetReader]:
+def get_change_mask_dataset(data_dir: Path, rivers_gdf: gpd.GeoDataFrame, utm_epsg: str) -> tuple[np.ndarray, rasterio.Affine, str, tuple[int, int]]:
     """
-    Returns (mask_array, transform, crs, raster_dataset).
-    If data/change_mask.tif exists, loads it.
-    Otherwise, creates data/dummy_change_mask.tif on the grid of data/sikkim_srtm.tif
-    by rasterizing rivers buffered by 300m in UTM, and prints a loud warning.
+    Returns (mask_array, transform, crs, srtm_shape).
+    If data/change_mask.tif exists:
+      - Uses REAL change mask.
+      - If change_mask.tif and srtm grid have different CRS or shape, resamples in-memory
+        to match the SRTM grid using nearest-neighbour resampling without modifying any .tif.
+    Otherwise:
+      - Creates data/dummy_change_mask.tif on the grid of srtm.tif by rasterizing 300m buffered rivers,
+        and prints a loud warning.
     """
-    real_mask_path = data_dir / "change_mask.tif"
-    dummy_mask_path = data_dir / "dummy_change_mask.tif"
-    srtm_path = data_dir / "sikkim_srtm.tif"
+    real_mask_fname = SITE.get("change_mask_file", "change_mask.tif" if SITE.get("name") == "sikkim" else f"{SITE.get('name')}_change_mask.tif")
+    real_mask_path = data_dir / real_mask_fname
+    dummy_mask_path = data_dir / f"{SITE.get('name')}_dummy_change_mask.tif"
+    dem_filename = SITE.get("dem_file", f"{SITE.get('name')}_srtm.tif")
+    srtm_path = data_dir / dem_filename
 
-    if real_mask_path.exists():
-        _log(f"Using change mask: {real_mask_path}")
-        src = rasterio.open(real_mask_path)
-        mask = (src.read(1) == 1)
-        return mask, src.transform, src.crs, src
-
-    # Print loud warning for dummy mask
-    print("\n" + "=" * 70, flush=True)
-    print("  WARNING: DUMMY MASK in use, not a real result", flush=True)
-    print("=" * 70 + "\n", flush=True)
-
+    # Read base SRTM grid specs
     if not srtm_path.exists():
         _log(f"ERROR: Base DEM raster not found at {srtm_path}")
         sys.exit(1)
 
     with rasterio.open(srtm_path) as srtm_src:
-        profile = srtm_src.profile.copy()
-        transform = srtm_src.transform
-        crs = srtm_src.crs
-        shape = srtm_src.shape
+        srtm_transform = srtm_src.transform
+        srtm_crs = srtm_src.crs
+        srtm_shape = srtm_src.shape
 
-    _log(f"Creating dummy change mask on SRTM grid ({shape[0]}x{shape[1]})...")
+    if real_mask_path.exists():
+        _log(f"Using REAL change mask from {real_mask_path}")
+        with rasterio.open(real_mask_path) as mask_src:
+            mask_data = mask_src.read(1)
+            mask_transform = mask_src.transform
+            mask_crs = mask_src.crs
+            mask_shape = mask_src.shape
 
-    # Buffer rivers in UTM by 300 m
+            # Check if resampling in memory is needed to match SRTM grid
+            if mask_shape != srtm_shape or mask_crs != srtm_crs or mask_transform != srtm_transform:
+                _log(f"  In-memory resampling change mask from shape {mask_shape} to SRTM shape {srtm_shape} (Nearest Neighbour)...")
+                resampled_mask = np.zeros(srtm_shape, dtype=np.uint8)
+                reproject(
+                    source=mask_data,
+                    destination=resampled_mask,
+                    src_transform=mask_transform,
+                    src_crs=mask_crs,
+                    dst_transform=srtm_transform,
+                    dst_crs=srtm_crs,
+                    resampling=Resampling.nearest,
+                )
+                final_mask = (resampled_mask == 1)
+            else:
+                final_mask = (mask_data == 1)
+
+            changed_count = np.count_nonzero(final_mask)
+            _log(f"  -> REAL change mask loaded: {changed_count:,} changed pixels ({changed_count/final_mask.size*100:.2f}%)")
+            return final_mask, srtm_transform, srtm_crs, srtm_shape
+
+    # DUMMY MASK PATH (only when change_mask.tif is absent)
+    print("\n" + "=" * 70, flush=True)
+    print("  WARNING: DUMMY MASK in use, not a real result", flush=True)
+    print("=" * 70 + "\n", flush=True)
+
+    _log(f"Creating dummy change mask on SRTM grid ({srtm_shape[0]}x{srtm_shape[1]})...")
+
     if not rivers_gdf.empty:
         rivers_utm = rivers_gdf.to_crs(utm_epsg)
         buffered_rivers_utm = rivers_utm.buffer(RIVER_DUMMY_BUFFER_M)
-        buffered_rivers_wgs84 = buffered_rivers_utm.to_crs(crs)
+        buffered_rivers_wgs84 = buffered_rivers_utm.to_crs(srtm_crs)
         combined_geom = unary_union(buffered_rivers_wgs84.geometry)
         geoms_to_rasterize = [mapping(combined_geom)] if not combined_geom.is_empty else []
     else:
         line = LineString([(88.55, 27.75), (88.53, 27.50), (88.48, 27.30), (88.40, 27.15)])
-        line_utm = gpd.GeoSeries([line], crs="EPSG:4326").to_crs(utm_epsg).buffer(300.0).to_crs(crs).iloc[0]
+        line_utm = gpd.GeoSeries([line], crs="EPSG:4326").to_crs(utm_epsg).buffer(300.0).to_crs(srtm_crs).iloc[0]
         geoms_to_rasterize = [mapping(line_utm)]
 
     if geoms_to_rasterize:
         dummy_mask = rasterize(
             shapes=((g, 1) for g in geoms_to_rasterize),
-            out_shape=shape,
-            transform=transform,
+            out_shape=srtm_shape,
+            transform=srtm_transform,
             fill=0,
             dtype=np.uint8,
         )
     else:
-        dummy_mask = np.zeros(shape, dtype=np.uint8)
+        dummy_mask = np.zeros(srtm_shape, dtype=np.uint8)
 
+    with rasterio.open(srtm_path) as srtm_src:
+        profile = srtm_src.profile.copy()
     profile.update(dtype=rasterio.uint8, count=1, nodata=0)
     with rasterio.open(dummy_mask_path, "w", **profile) as dst:
         dst.write(dummy_mask, 1)
     _log(f"  -> Saved {dummy_mask_path}")
 
-    src = rasterio.open(dummy_mask_path)
-    mask = (dummy_mask == 1)
-    return mask, transform, crs, src
+    return (dummy_mask == 1), srtm_transform, srtm_crs, srtm_shape
+
+
+def get_confidence_raster_dataset(data_dir: Path, target_shape: tuple[int, int], target_transform: rasterio.Affine, target_crs: str) -> tuple[np.ndarray | None, str | None]:
+    """
+    Load confidence/probability raster.
+    Checks CONFIDENCE_RASTER_FILE (e.g. ml_probability.tif), falls back to FALLBACK_CONFIDENCE_RASTER_FILE (confidence.tif).
+    If neither exists, returns (None, None) and logs a warning.
+    Resamples in-memory to match the target grid if dimensions/CRS differ.
+    """
+    primary_path = data_dir / CONFIDENCE_RASTER_FILE
+    fallback_path = data_dir / FALLBACK_CONFIDENCE_RASTER_FILE
+
+    chosen_path = None
+    if primary_path.exists():
+        chosen_path = primary_path
+        _log(f"Using primary confidence raster from {chosen_path.name}")
+    elif fallback_path.exists():
+        chosen_path = fallback_path
+        _log(f"Primary confidence raster '{CONFIDENCE_RASTER_FILE}' not found. Using fallback confidence raster '{chosen_path.name}'")
+    else:
+        print("\n" + "=" * 70, flush=True)
+        print(f"  WARNING: Neither '{CONFIDENCE_RASTER_FILE}' nor '{FALLBACK_CONFIDENCE_RASTER_FILE}' exists.", flush=True)
+        print("  Confidence column will be empty.", flush=True)
+        print("=" * 70 + "\n", flush=True)
+        return None, None
+
+    with rasterio.open(chosen_path) as src:
+        conf_data = src.read(1).astype(np.float32)
+        conf_transform = src.transform
+        conf_crs = src.crs
+        conf_shape = src.shape
+
+    # In-memory resampling if grid differs
+    if conf_shape != target_shape or conf_crs != target_crs or conf_transform != target_transform:
+        _log(f"  In-memory resampling confidence raster from shape {conf_shape} to grid shape {target_shape} (Bilinear)...")
+        resampled_conf = np.zeros(target_shape, dtype=np.float32)
+        reproject(
+            source=conf_data,
+            destination=resampled_conf,
+            src_transform=conf_transform,
+            src_crs=conf_crs,
+            dst_transform=target_transform,
+            dst_crs=target_crs,
+            resampling=Resampling.bilinear,
+        )
+        return resampled_conf, chosen_path.name
+
+    return conf_data, chosen_path.name
 
 
 def sample_mask_at_point(x_coord: float, y_coord: float, mask: np.ndarray, transform: rasterio.Affine) -> int:
@@ -280,6 +360,99 @@ def sample_mask_at_point(x_coord: float, y_coord: float, mask: np.ndarray, trans
     except Exception:
         pass
     return 0
+
+
+def compute_polygon_mask_fraction(polygon_wgs84: Polygon, mask: np.ndarray, transform: rasterio.Affine) -> float:
+    """Compute fraction of pixels inside polygon that equal True in mask."""
+    try:
+        minx, miny, maxx, maxy = polygon_wgs84.bounds
+        r_min, c_min = rowcol(transform, minx, maxy)
+        r_max, c_max = rowcol(transform, maxx, miny)
+
+        r_start = max(0, min(r_min, r_max))
+        r_end = min(mask.shape[0], max(r_min, r_max) + 1)
+        c_start = max(0, min(c_min, c_max))
+        c_end = min(mask.shape[1], max(c_min, c_max) + 1)
+
+        if r_start >= r_end or c_start >= c_end:
+            return 0.0
+
+        sub_mask = mask[r_start:r_end, c_start:c_end]
+        sub_transform = rasterio.windows.transform(
+            rasterio.windows.Window(c_start, r_start, c_end - c_start, r_end - r_start),
+            transform
+        )
+
+        poly_raster = rasterize(
+            shapes=[(mapping(polygon_wgs84), 1)],
+            out_shape=sub_mask.shape,
+            transform=sub_transform,
+            fill=0,
+            dtype=np.uint8,
+        )
+
+        inside_pixels = (poly_raster == 1)
+        total_inside = np.count_nonzero(inside_pixels)
+        if total_inside == 0:
+            return 0.0
+
+        changed_inside = np.count_nonzero(inside_pixels & sub_mask)
+        return float(changed_inside / total_inside)
+    except Exception:
+        return 0.0
+
+
+def compute_polygon_confidence(polygon_wgs84: Polygon, mask: np.ndarray, conf_raster: np.ndarray | None, transform: rasterio.Affine) -> float | None:
+    """
+    Compute mean confidence over village circle:
+    - Only over pixels where change mask == 1.
+    - If none, use the mean over the whole circle.
+    - Round to 2 decimals.
+    """
+    if conf_raster is None:
+        return None
+
+    try:
+        minx, miny, maxx, maxy = polygon_wgs84.bounds
+        r_min, c_min = rowcol(transform, minx, maxy)
+        r_max, c_max = rowcol(transform, maxx, miny)
+
+        r_start = max(0, min(r_min, r_max))
+        r_end = min(conf_raster.shape[0], max(r_min, r_max) + 1)
+        c_start = max(0, min(c_min, c_max))
+        c_end = min(conf_raster.shape[1], max(c_min, c_max) + 1)
+
+        if r_start >= r_end or c_start >= c_end:
+            return None
+
+        sub_mask = mask[r_start:r_end, c_start:c_end]
+        sub_conf = conf_raster[r_start:r_end, c_start:c_end]
+        sub_transform = rasterio.windows.transform(
+            rasterio.windows.Window(c_start, r_start, c_end - c_start, r_end - r_start),
+            transform
+        )
+
+        poly_raster = rasterize(
+            shapes=[(mapping(polygon_wgs84), 1)],
+            out_shape=sub_mask.shape,
+            transform=sub_transform,
+            fill=0,
+            dtype=np.uint8,
+        )
+
+        inside_pixels = (poly_raster == 1)
+        changed_inside = inside_pixels & sub_mask
+
+        if np.count_nonzero(changed_inside) > 0:
+            val = float(np.nanmean(sub_conf[changed_inside]))
+        elif np.count_nonzero(inside_pixels) > 0:
+            val = float(np.nanmean(sub_conf[inside_pixels]))
+        else:
+            return None
+
+        return round(val, 2)
+    except Exception:
+        return None
 
 
 # =============================================================================
@@ -316,10 +489,13 @@ def main() -> None:
 
     _log(f"Processing {len(villages)} village / hamlet / town settlements...")
 
-    # 2. Get change mask
-    mask, mask_transform, mask_crs, mask_src = get_change_mask_dataset(data_dir, rivers_raw, utm_epsg)
+    # 2. Get change mask (in-memory resampled to SRTM grid if shapes differ)
+    mask, mask_transform, mask_crs, srtm_shape = get_change_mask_dataset(data_dir, rivers_raw, utm_epsg)
 
-    # 3. Prepare geometric layers in UTM & WGS84
+    # 3. Load Confidence / ML Probability Raster
+    conf_raster, conf_file_used = get_confidence_raster_dataset(data_dir, srtm_shape, mask_transform, mask_crs)
+
+    # 4. Prepare geometric layers in UTM & WGS84
     villages_utm = villages.to_crs(utm_epsg)
     
     # Filter roads: ignore footway, steps, path, cycleway, pedestrian, bridleway
@@ -343,7 +519,7 @@ def main() -> None:
 
     _log(f"  Identified {len(unaffected_hospitals_utm)} unaffected hospitals out of {len(hospitals_raw)} mapped.")
 
-    # 4. Compute metrics per village
+    # 5. Compute metrics per village
     ranked_records = []
 
     for idx, v_row in villages.iterrows():
@@ -362,19 +538,12 @@ def main() -> None:
         # B. Village area (1 km circle in UTM) & Affected fraction
         circle_utm = v_pt_utm.buffer(VILLAGE_BUFFER_M)
         circle_wgs84 = gpd.GeoSeries([circle_utm], crs=utm_epsg).to_crs(mask_crs).iloc[0]
+        affected_fraction = compute_polygon_mask_fraction(circle_wgs84, mask, mask_transform)
 
-        try:
-            masked_data, _ = rasterio_mask(mask_src, [mapping(circle_wgs84)], crop=True, nodata=255)
-            valid_pixels = masked_data[0][masked_data[0] != 255]
-            if len(valid_pixels) > 0:
-                changed_pixels = np.count_nonzero(valid_pixels == 1)
-                affected_fraction = float(changed_pixels / len(valid_pixels))
-            else:
-                affected_fraction = 0.0
-        except Exception:
-            affected_fraction = 0.0
+        # C. Confidence calculation over 1 km circle
+        confidence_val = compute_polygon_confidence(circle_wgs84, mask, conf_raster, mask_transform)
 
-        # C. Blocked-road share (sampled every 50m along roads within 2 km in UTM)
+        # D. Blocked-road share (sampled every 50m along roads within 2 km in UTM)
         road_search_circle = v_pt_utm.buffer(ROAD_BUFFER_M)
         if not roads_utm.empty:
             nearby_roads = roads_utm[roads_utm.intersects(road_search_circle)]
@@ -408,7 +577,7 @@ def main() -> None:
         else:
             blocked_road_share = 0.0
 
-        # D. Hospital distance to nearest unaffected hospital
+        # E. Hospital distance to nearest unaffected hospital
         if unaffected_hospitals_utm:
             min_hosp_dist_m = min(v_pt_utm.distance(h_pt) for h_pt in unaffected_hospitals_utm)
             hosp_dist_km = min_hosp_dist_m / 1000.0
@@ -417,7 +586,7 @@ def main() -> None:
             hosp_dist_km = HOSPITAL_MAX_DIST_KM
             hosp_str = "no unaffected hospital mapped"
 
-        # E. Composite Score
+        # F. Composite Score
         hosp_penalty_factor = min(hosp_dist_km / HOSPITAL_MAX_DIST_KM, 1.0)
 
         if affected_fraction > 0 or blocked_road_share > 0:
@@ -431,7 +600,7 @@ def main() -> None:
 
         score = float(np.round(score, 2))
 
-        # F. Plain-language reason string
+        # G. Plain-language reason string
         if blocked_road_share >= 0.5:
             road_phrase = "access roads mostly blocked"
         elif blocked_road_share > 0:
@@ -454,12 +623,11 @@ def main() -> None:
             "population": int(population),
             "score": score,
             "reason": reason,
+            "confidence": confidence_val,
             "geometry": v_pt_wgs84,
         })
 
-    mask_src.close()
-
-    # 5. Filter: keep only villages with score > 0
+    # 6. Filter: keep only villages with score > 0
     gdf_all = gpd.GeoDataFrame(ranked_records, crs="EPSG:4326")
     gdf_positive = gdf_all[gdf_all["score"] > 0.0].copy()
 
@@ -467,32 +635,39 @@ def main() -> None:
     gdf_sorted = gdf_positive.sort_values(by="score", ascending=False).reset_index(drop=True)
     gdf_sorted["rank"] = gdf_sorted.index + 1
 
-    # Keep exact required properties: rank, name, population, score, reason
-    output_gdf = gdf_sorted[["rank", "name", "population", "score", "reason", "geometry"]].copy()
+    # Keep exact required properties: rank, name, population, score, reason, confidence
+    output_gdf = gdf_sorted[["rank", "name", "population", "score", "reason", "confidence", "geometry"]].copy()
 
-    # 6. Save GeoJSON outputs
+    # 7. Save GeoJSON outputs
     data_dir.mkdir(parents=True, exist_ok=True)
-    out_file_data = data_dir / "villages_ranked.geojson"
+    villages_fname = SITE.get("villages_ranked_file", "villages_ranked.geojson" if site_name == "sikkim" else f"{site_name}_villages_ranked.geojson")
+    out_file_data = data_dir / villages_fname
     output_gdf.to_file(out_file_data, driver="GeoJSON")
     _log(f"Saved {len(output_gdf)} ranked villages -> {out_file_data}")
 
     try:
         frontend_dir.mkdir(parents=True, exist_ok=True)
-        out_file_frontend = frontend_dir / "villages_ranked.geojson"
+        out_file_frontend = frontend_dir / villages_fname
         output_gdf.to_file(out_file_frontend, driver="GeoJSON")
         _log(f"Saved {len(output_gdf)} ranked villages -> {out_file_frontend}")
     except Exception as e:
         _log(f"  [WARN] Could not copy to frontend dir: {e}")
 
-    # 7. Print top 10 rows and total count
-    print("\n" + "=" * 95, flush=True)
+    # Compute min and max score
+    min_score = float(output_gdf["score"].min()) if len(output_gdf) > 0 else 0.0
+    max_score = float(output_gdf["score"].max()) if len(output_gdf) > 0 else 0.0
+
+    # 8. Print top 10 rows and summary statistics
+    print("\n" + "=" * 110, flush=True)
     print(f"  TOP 10 RANKED VILLAGES (Total with Score > 0: {len(output_gdf)} / {len(gdf_all)})", flush=True)
-    print("=" * 95, flush=True)
-    print(f"{'Rank':<6} {'Name':<24} {'Pop':<8} {'Score':<8} {'Reason'}", flush=True)
-    print("-" * 95, flush=True)
+    print(f"  Score Range: Min = {min_score:.2f}, Max = {max_score:.2f} | Confidence Raster Used: {conf_file_used}", flush=True)
+    print("=" * 110, flush=True)
+    print(f"{'Rank':<6} {'Name':<22} {'Pop':<7} {'Score':<9} {'Conf':<7} {'Reason'}", flush=True)
+    print("-" * 110, flush=True)
     for _, row in output_gdf.head(10).iterrows():
-        print(f"#{row['rank']:<5} {row['name'][:22]:<24} {row['population']:<8} {row['score']:<8.2f} {row['reason']}", flush=True)
-    print("=" * 95 + "\n", flush=True)
+        conf_str = f"{row['confidence']:.2f}" if row['confidence'] is not None and not np.isnan(row['confidence']) else "N/A"
+        print(f"#{row['rank']:<5} {row['name'][:20]:<22} {row['population']:<7} {row['score']:<9.2f} {conf_str:<7} {row['reason']}", flush=True)
+    print("=" * 110 + "\n", flush=True)
 
 
 if __name__ == "__main__":

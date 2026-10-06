@@ -1,132 +1,120 @@
 #!/usr/bin/env python3
 """
-risk.py - Weather Risk & Compound Slope Hazard Alert System.
+risk.py - Compound Weather & Slope Susceptibility Risk Alert System.
 
-Combines:
-  1. Open-Meteo 7-day rainfall forecast (precipitation sum, intensity).
-  2. Slope susceptibility calculated from SRTM DEM.
-  3. Proximity to active change/flood zones.
+Fetches live rainfall forecast from Open-Meteo API across the bounding box,
+computes slope susceptibility from SRTM DEM, and combines them into regional
+risk alert zones (Low, Med, High).
 
-Important Disclaimer:
-  This produces a "Risk Alert", NOT a deterministic physical prediction.
-  Glacial Lake Outburst Floods (GLOFs) and earthquake-triggered landslides are
-  not rain-driven; this alert specifically monitors secondary rain-triggered
-  landslides, debris reactivation, and residual slope failure hazards.
-
-Output:
-  data/risk_alerts.geojson
-  data/risk_alerts.json
+Outputs:
+  - data/risk_alerts.geojson
+  - frontend/public/data/risk_alerts.geojson
 """
 
 import json
+import math
 import os
+import shutil
 import sys
 import time
-import warnings
+from datetime import datetime, timezone
 from pathlib import Path
 
 import geopandas as gpd
 import numpy as np
 import rasterio
-from rasterio.transform import rowcol
 import requests
-from shapely.geometry import Point
+from shapely.geometry import box
 
-warnings.filterwarnings("ignore")
-
+# Ensure repository root is on sys.path
 ROOT_DIR = Path(__file__).resolve().parent.parent
-DATA_DIR = ROOT_DIR / "data"
-SCRIPTS_DIR = ROOT_DIR / "scripts"
+if str(ROOT_DIR) not in sys.path:
+    sys.path.insert(0, str(ROOT_DIR))
+if str(ROOT_DIR / "scripts") not in sys.path:
+    sys.path.insert(0, str(ROOT_DIR / "scripts"))
 
-sys.path.insert(0, str(SCRIPTS_DIR))
 try:
-    from config import get_site_config, copy_to_frontend
+    from scripts.site_config import SITE
 except ImportError:
-    get_site_config = lambda: {
-        "bbox": (88.30, 27.15, 88.75, 27.75),
-        "dem_file": "sikkim_srtm.tif",
-        "center_lat": 27.45,
-        "center_lon": 88.52,
-    }
-    copy_to_frontend = lambda src, fn: None
+    from site_config import SITE
 
-SITE = get_site_config()
-WEST, SOUTH, EAST, NORTH = SITE["bbox"]
+# ==============================================================================
+# NAMED THRESHOLD CONSTANTS & CONFIGURATION
+# ==============================================================================
+GRID_ROWS = 3
+GRID_COLS = 3
+FORECAST_DAYS = 3
+
+# Slope susceptibility thresholds (in degrees)
+# Under 15 deg -> Low, 15 to 30 deg -> Med, over 30 deg -> High
+SLOPE_LOW_MAX = 15.0
+SLOPE_MED_MAX = 30.0
+
+# Rainfall thresholds for 3-day accumulated precipitation (in mm)
+# Under 5 mm -> Low, 5 to 20 mm -> Med, over 20 mm -> High
+RAIN_LOW_MAX = 5.0
+RAIN_MED_MAX = 20.0
+
+# Compound Risk Matrix: (Slope_Class, Rain_Class) -> Risk Level
+RISK_MATRIX = {
+    ("High", "High"): "High",
+    ("High", "Med"):  "High",
+    ("High", "Low"):  "Med",
+    ("Med",  "High"): "High",
+    ("Med",  "Med"):  "Med",
+    ("Med",  "Low"):  "Low",
+    ("Low",  "High"): "Med",
+    ("Low",  "Med"):  "Low",
+    ("Low",  "Low"):  "Low",
+}
+
+DISCLAIMER_NOTE = (
+    "Risk alert, not a prediction. Glacial lake outbursts are not rain-driven and are not covered."
+)
+
+# Paths strictly from site_config
+DATA_DIR = Path(SITE["data_dir"])
+FRONTEND_DIR = Path(SITE["frontend_dir"])
 DEM_PATH = DATA_DIR / SITE["dem_file"]
-VILLAGES_PATH = DATA_DIR / "villages_ranked.geojson"
-OUTPUT_GEOJSON = DATA_DIR / "risk_alerts.geojson"
-OUTPUT_JSON = DATA_DIR / "risk_alerts.json"
+RISK_GEOJSON_FILENAME = SITE.get("risk_alerts_file", "risk_alerts.geojson" if SITE.get("name") == "sikkim" else f"{SITE.get('name')}_risk_alerts.geojson")
+RISK_JSON_FILENAME = RISK_GEOJSON_FILENAME.replace(".geojson", ".json")
+OUTPUT_GEOJSON = DATA_DIR / RISK_GEOJSON_FILENAME
+OUTPUT_JSON = DATA_DIR / RISK_JSON_FILENAME
+FRONTEND_OUTPUT_GEOJSON = FRONTEND_DIR / RISK_GEOJSON_FILENAME
+FRONTEND_OUTPUT_JSON = FRONTEND_DIR / RISK_JSON_FILENAME
 
 
-def _log(msg: str) -> None:
-    try:
-        print(f"[risk_alert] {msg}", flush=True)
-    except UnicodeEncodeError:
-        print(f"[risk_alert] {msg.encode('ascii', errors='replace').decode('ascii')}", flush=True)
+def classify_slope(slope_deg: float) -> str:
+    """Classify terrain slope into Low, Med, or High susceptibility."""
+    if slope_deg < SLOPE_LOW_MAX:
+        return "Low"
+    elif slope_deg <= SLOPE_MED_MAX:
+        return "Med"
+    else:
+        return "High"
 
 
-# -- Open-Meteo Weather Forecast Fetcher --------------------------------------
+def classify_rain(rain_mm: float) -> str:
+    """Classify 3-day rainfall into Low, Med, or High intensity."""
+    if rain_mm < RAIN_LOW_MAX:
+        return "Low"
+    elif rain_mm <= RAIN_MED_MAX:
+        return "Med"
+    else:
+        return "High"
 
-def fetch_open_meteo_forecast(lat: float, lon: float) -> dict:
+
+def combine_risk(slope_class: str, rain_class: str) -> str:
+    """Combine slope susceptibility and forecast rain into final risk rating."""
+    return RISK_MATRIX.get((slope_class, rain_class), "Med")
+
+
+def compute_slope_grid(dem_path: Path, min_lon: float, min_lat: float, max_lon: float, max_lat: float):
     """
-    Fetch 7-day weather forecast from Open-Meteo free API (no key required).
-    """
-    url = "https://api.open-meteo.com/v1/forecast"
-    params = {
-        "latitude": lat,
-        "longitude": lon,
-        "daily": ["precipitation_sum", "rain_sum", "precipitation_probability_max", "wind_speed_10m_max"],
-        "hourly": ["precipitation", "soil_moisture_0_to_1cm"],
-        "timezone": "auto",
-        "forecast_days": 7,
-    }
-
-    try:
-        _log(f"Fetching Open-Meteo forecast for ({lat:.3f}, {lon:.3f})...")
-        resp = requests.get(url, params=params, timeout=15)
-        if resp.status_code == 200:
-            data = resp.json()
-            daily = data.get("daily", {})
-            dates = daily.get("time", [])
-            precip = daily.get("precipitation_sum", [])
-            probs = daily.get("precipitation_probability_max", [])
-
-            total_7d_mm = float(np.sum(precip)) if precip else 0.0
-            max_daily_mm = float(np.max(precip)) if precip else 0.0
-            max_prob_pct = int(np.max(probs)) if probs else 0
-
-            return {
-                "status": "success",
-                "total_7d_precip_mm": round(total_7d_mm, 1),
-                "max_daily_precip_mm": round(max_daily_mm, 1),
-                "max_prob_pct": max_prob_pct,
-                "daily_forecast": [
-                    {"date": d, "precip_mm": p, "prob_pct": pr}
-                    for d, p, pr in zip(dates, precip, probs)
-                ],
-            }
-    except Exception as e:
-        _log(f"  [WARN] Open-Meteo request failed: {e}")
-
-    # Fallback simulated seasonal monsoon/post-monsoon estimate
-    return {
-        "status": "fallback_estimate",
-        "total_7d_precip_mm": 48.5,
-        "max_daily_precip_mm": 22.0,
-        "max_prob_pct": 75,
-        "daily_forecast": [],
-    }
-
-
-# -- Slope Susceptibility from DEM --------------------------------------------
-
-def compute_local_slope(dem_path: Path, points: list[Point]) -> list[float]:
-    """
-    Read SRTM DEM and compute local terrain slope around each village point.
+    Compute slope from DEM raster and return mean slope per grid cell.
     """
     if not dem_path.exists():
-        _log(f"  [WARN] DEM not found at {dem_path}. Using default slope estimates.")
-        return [18.0] * len(points)
+        raise FileNotFoundError(f"DEM raster not found at {dem_path}")
 
     with rasterio.open(dem_path) as src:
         dem = src.read(1).astype(np.float32)
@@ -136,143 +124,234 @@ def compute_local_slope(dem_path: Path, points: list[Point]) -> list[float]:
     if nodata is not None:
         dem[dem == nodata] = np.nan
 
+    center_lat = (min_lat + max_lat) / 2.0
     res_y = abs(transform.e) * 111_320.0
-    res_x = abs(transform.a) * 111_320.0 * np.cos(np.radians(27.45))
-    grad_y, grad_x = np.gradient(dem, res_y, res_x)
-    slope = np.degrees(np.arctan(np.sqrt(grad_x**2 + grad_y**2)))
+    res_x = abs(transform.a) * 111_320.0 * np.cos(np.radians(center_lat))
+    gy, gx = np.gradient(dem, res_y, res_x)
+    slope = np.degrees(np.arctan(np.sqrt(gx**2 + gy**2)))
 
-    slopes = []
-    for pt in points:
-        try:
-            r, c = rowcol(transform, pt.x, pt.y)
-            if 0 <= r < slope.shape[0] and 0 <= c < slope.shape[1]:
-                val = slope[r, c]
-                slopes.append(float(val) if not np.isnan(val) else 15.0)
-            else:
-                slopes.append(15.0)
-        except Exception:
-            slopes.append(15.0)
-
-    return slopes
+    return slope, transform
 
 
-# -- Risk Calculation Pipeline ------------------------------------------------
-
-def evaluate_risk_level(slope_deg: float, forecast_rain_mm: float, affected_fraction: float) -> tuple[str, float, str]:
+def fetch_live_rainfall(grid_centers: list[tuple[float, float]]) -> tuple[list[float], str, int, str]:
     """
-    Combine slope susceptibility, rainfall threshold, and pre-existing flood damage.
-    Returns: (risk_level: 'High'|'Medium'|'Low', risk_score: 0-100, rationale: str)
+    Fetch 3-day precipitation forecast from Open-Meteo for grid center points.
+    Returns: (rain_totals_mm, exact_url, status_code, timestamp_str)
     """
-    # Slope hazard weight (steep terrain > 25° has high landslide risk)
-    slope_factor = min(1.0, slope_deg / 35.0)
+    url = "https://api.open-meteo.com/v1/forecast"
+    lats = [f"{lat:.4f}" for lat, _ in grid_centers]
+    lons = [f"{lon:.4f}" for _, lon in grid_centers]
 
-    # Rainfall trigger weight (heavy rain > 30 mm in 24h triggers Himalayan slope failures)
-    rain_factor = min(1.0, forecast_rain_mm / 50.0)
-
-    # Existing destabilization from flood scour
-    damage_factor = min(1.0, affected_fraction * 2.0)
-
-    # Composite risk score (0 to 100)
-    risk_score = (slope_factor * 35.0 + rain_factor * 40.0 + damage_factor * 25.0)
-    risk_score = round(float(np.clip(risk_score, 0.0, 100.0)), 1)
-
-    if risk_score >= 60.0 or (forecast_rain_mm >= 30.0 and slope_deg >= 22.0):
-        level = "High"
-        action = "High Risk Alert: Impending rainfall on steep/destabilized slopes. Recommend proactive evacuations along gullies."
-    elif risk_score >= 35.0:
-        level = "Medium"
-        action = "Moderate Risk Alert: Possible localized slope slumping and road debris. Monitor access routes."
-    else:
-        level = "Low"
-        action = "Low Risk Alert: Stable topography and low forecast accumulation. Regular monitoring."
-
-    return level, risk_score, action
-
-
-def main() -> None:
-    _log("Starting weather risk alert analysis...")
-
-    # 1. Fetch weather forecast for regional center
-    center_lat = SITE.get("center_lat", 27.45)
-    center_lon = SITE.get("center_lon", 88.52)
-    weather = fetch_open_meteo_forecast(center_lat, center_lon)
-    max_rain_mm = weather["max_daily_precip_mm"]
-    total_7d_mm = weather["total_7d_precip_mm"]
-    _log(f"  Forecast 7-day total rain: {total_7d_mm} mm (Max daily: {max_rain_mm} mm)")
-
-    # 2. Load villages
-    if VILLAGES_PATH.exists():
-        villages_gdf = gpd.read_file(VILLAGES_PATH)
-    else:
-        _log(f"  [WARN] {VILLAGES_PATH} not found. Using fallback point grid.")
-        villages_gdf = gpd.GeoDataFrame({
-            "name": ["Chungthang", "Lachung", "Mangan", "Dikchu", "Singtam"],
-            "geometry": [
-                Point(88.646, 27.604),
-                Point(88.742, 27.689),
-                Point(88.531, 27.490),
-                Point(88.522, 27.402),
-                Point(88.498, 27.234),
-            ],
-            "affected_fraction": [0.25, 0.20, 0.15, 0.18, 0.12],
-            "population": [1500, 6000, 4500, 1200, 8000],
-        }, crs="EPSG:4326")
-
-    # 3. Compute slope for each village
-    slopes = compute_local_slope(DEM_PATH, list(villages_gdf.geometry))
-
-    # 4. Compute risk alert per village
-    results = []
-    for idx, row in villages_gdf.iterrows():
-        slope = slopes[idx]
-        aff_frac = float(row.get("affected_fraction", 0.15))
-        level, r_score, rationale = evaluate_risk_level(slope, max_rain_mm, aff_frac)
-
-        results.append({
-            "name": row.get("name", f"Location_{idx+1}"),
-            "risk_level": level,
-            "risk_score": r_score,
-            "slope_deg": round(slope, 1),
-            "forecast_rain_24h_mm": max_rain_mm,
-            "forecast_rain_7d_mm": total_7d_mm,
-            "rationale": rationale,
-            "population": int(row.get("population", 1000)),
-            "geometry": row.geometry,
-        })
-
-    alerts_gdf = gpd.GeoDataFrame(results, crs="EPSG:4326")
-    alerts_gdf = alerts_gdf.sort_values(by="risk_score", ascending=False).reset_index(drop=True)
-
-    # 5. Save GeoJSON and JSON outputs
-    alerts_gdf.to_file(OUTPUT_GEOJSON, driver="GeoJSON")
-    copy_to_frontend(OUTPUT_GEOJSON, "risk_alerts.geojson")
-
-    # Save summary JSON with explicit limitations & methodology disclaimer
-    summary_data = {
-        "title": "Disaster Risk & Weather Alert Summary",
-        "site": SITE["name"],
-        "generated_at": time.strftime("%Y-%m-%d %H:%M:%S UTC", time.gmtime()),
-        "disclaimer": (
-            "NOTICE: This is an emergency risk alert, NOT a deterministic prediction. "
-            "Glacial Lake Outburst Floods (GLOFs) are non-meteorological events. "
-            "This alert evaluates secondary rainfall-induced landslide reactivation on destabilized slopes."
-        ),
-        "weather_summary": weather,
-        "counts": {
-            "high_risk": int((alerts_gdf["risk_level"] == "High").sum()),
-            "medium_risk": int((alerts_gdf["risk_level"] == "Medium").sum()),
-            "low_risk": int((alerts_gdf["risk_level"] == "Low").sum()),
-            "total_monitored": len(alerts_gdf),
-        },
-        "top_alerts": alerts_gdf[["name", "risk_level", "risk_score", "slope_deg", "rationale"]].head(10).to_dict(orient="records"),
+    params = {
+        "latitude": ",".join(lats),
+        "longitude": ",".join(lons),
+        "daily": "precipitation_sum",
+        "forecast_days": FORECAST_DAYS,
+        "timezone": "auto",
     }
 
-    with open(OUTPUT_JSON, "w", encoding="utf-8") as f:
-        json.dump(summary_data, f, indent=2)
-    copy_to_frontend(OUTPUT_JSON, "risk_alerts.json")
+    resp = requests.get(url, params=params, timeout=15)
+    exact_url = resp.url
+    status_code = resp.status_code
 
-    _log(f"Saved risk alerts -> {OUTPUT_GEOJSON} and {OUTPUT_JSON}")
-    _log(f"Alert summary: High={summary_data['counts']['high_risk']}, Medium={summary_data['counts']['medium_risk']}, Low={summary_data['counts']['low_risk']}")
+    if status_code != 200:
+        raise RuntimeError(f"Open-Meteo API returned HTTP status {status_code}: {resp.text}")
+
+    data = resp.json()
+    if isinstance(data, dict):
+        data = [data]
+
+    timestamp_str = resp.headers.get("Date", datetime.now(timezone.utc).strftime("%a, %d %b %Y %H:%M:%S GMT"))
+    
+    # Extract precipitation sum for each point
+    rain_totals = []
+    for item in data:
+        daily_precip = item.get("daily", {}).get("precipitation_sum", [])
+        total_mm = float(np.sum(daily_precip)) if daily_precip else 0.0
+        rain_totals.append(round(total_mm, 1))
+
+    return rain_totals, exact_url, status_code, timestamp_str
+
+
+def fallback_stale_result(error_msg: str):
+    """
+    Fallback handler when live API call fails.
+    Uses last saved result and marks notes as stale.
+    """
+    print(f"\n[ERROR] Open-Meteo live forecast API call failed: {error_msg}")
+    print("[FALLBACK] Attempting to fall back to last saved risk alerts...")
+
+    if OUTPUT_GEOJSON.exists():
+        with open(OUTPUT_GEOJSON, "r", encoding="utf-8") as f:
+            saved_data = json.load(f)
+
+        features = saved_data.get("features", [])
+        for feat in features:
+            props = feat.get("properties", {})
+            existing_note = props.get("note", DISCLAIMER_NOTE)
+            props["note"] = f"stale (API unavailable): {existing_note}"
+
+        saved_data["features"] = features
+
+        DATA_DIR.mkdir(parents=True, exist_ok=True)
+        with open(OUTPUT_GEOJSON, "w", encoding="utf-8") as f:
+            json.dump(saved_data, f, indent=2)
+
+        FRONTEND_DIR.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(OUTPUT_GEOJSON, FRONTEND_OUTPUT_GEOJSON)
+
+        print(f"[FALLBACK] Successfully restored last saved data as 'stale' -> {OUTPUT_GEOJSON}")
+        
+        # Summary counts
+        risks = [f["properties"].get("risk") for f in features]
+        print(f"Risk Counts (Stale Fallback): Low={risks.count('Low')}, Med={risks.count('Med')}, High={risks.count('High')}")
+        return
+
+    raise RuntimeError("No saved risk_alerts.geojson found for stale fallback.")
+
+
+def main():
+    bbox = SITE["bbox"]
+    min_lon, min_lat, max_lon, max_lat = bbox
+
+    # 1. Generate 3x3 Grid Polygons & Centers
+    dlat = (max_lat - min_lat) / GRID_ROWS
+    dlon = (max_lon - min_lon) / GRID_COLS
+
+    zones_geom = []
+    grid_centers = []
+    zone_names = []
+
+    # Iterate North-to-South (top-down), West-to-East (left-right)
+    zone_idx = 1
+    for r in reversed(range(GRID_ROWS)):
+        for c in range(GRID_COLS):
+            c_min_lon = min_lon + c * dlon
+            c_max_lon = min_lon + (c + 1) * dlon
+            c_min_lat = min_lat + r * dlat
+            c_max_lat = min_lat + (r + 1) * dlat
+
+            poly = box(c_min_lon, c_min_lat, c_max_lon, c_max_lat)
+            center_lat = (c_min_lat + c_max_lat) / 2.0
+            center_lon = (c_min_lon + c_max_lon) / 2.0
+
+            zones_geom.append((poly, c_min_lon, c_min_lat, c_max_lon, c_max_lat))
+            grid_centers.append((center_lat, center_lon))
+            zone_names.append(f"Zone {zone_idx}")
+            zone_idx += 1
+
+    # 2. Fetch Live Weather from Open-Meteo
+    try:
+        rain_totals_mm, exact_url, status_code, timestamp_str = fetch_live_rainfall(grid_centers)
+        print("=" * 80)
+        print("LIVE OPEN-METEO WEATHER FORECAST")
+        print("=" * 80)
+        print(f"Exact API URL Called : {exact_url}")
+        print(f"HTTP Response Status : {status_code} OK")
+        print(f"Data Timestamp / Date: {timestamp_str}")
+        print("=" * 80)
+    except Exception as e:
+        fallback_stale_result(str(e))
+        return
+
+    # 3. Compute Slope from SRTM DEM
+    slope_raster, transform = compute_slope_grid(DEM_PATH, min_lon, min_lat, max_lon, max_lat)
+
+    # 4. Build Zone Features
+    features = []
+    low_count = 0
+    med_count = 0
+    high_count = 0
+
+    for i, (poly, c_min_lon, c_min_lat, c_max_lon, c_max_lat) in enumerate(zones_geom):
+        zone_name = zone_names[i]
+        rain_mm = rain_totals_mm[i]
+
+        # Extract raster pixel window for cell
+        r_min, c_min = rasterio.transform.rowcol(transform, c_min_lon, c_max_lat)
+        r_max, c_max = rasterio.transform.rowcol(transform, c_max_lon, c_min_lat)
+        r1, r2 = max(0, min(r_min, r_max)), min(slope_raster.shape[0], max(r_min, r_max))
+        c1, c2 = max(0, min(c_min, c_max)), min(slope_raster.shape[1], max(c_min, c_max))
+
+        zone_slope_pixels = slope_raster[r1:r2, c1:c2]
+        mean_slope = float(np.nanmean(zone_slope_pixels)) if zone_slope_pixels.size > 0 else 20.0
+
+        # Classifications
+        slope_class = classify_slope(mean_slope)
+        rain_class = classify_rain(rain_mm)
+        risk = combine_risk(slope_class, rain_class)
+
+        if risk == "Low":
+            low_count += 1
+        elif risk == "Med":
+            med_count += 1
+        elif risk == "High":
+            high_count += 1
+
+        feature = {
+            "type": "Feature",
+            "properties": {
+                "zone": zone_name,
+                "risk": risk,
+                "rain_mm": rain_mm,
+                "slope_class": slope_class,
+                "note": DISCLAIMER_NOTE,
+            },
+            "geometry": {
+                "type": "Polygon",
+                "coordinates": [
+                    [
+                        [round(c_min_lon, 6), round(c_min_lat, 6)],
+                        [round(c_max_lon, 6), round(c_min_lat, 6)],
+                        [round(c_max_lon, 6), round(c_max_lat, 6)],
+                        [round(c_min_lon, 6), round(c_max_lat, 6)],
+                        [round(c_min_lon, 6), round(c_min_lat, 6)],
+                    ]
+                ],
+            },
+        }
+        features.append(feature)
+
+    geojson_data = {
+        "type": "FeatureCollection",
+        "crs": {
+            "type": "name",
+            "properties": {"name": "urn:ogc:def:crs:OGC:1.3:CRS84"},
+        },
+        "features": features,
+    }
+
+    # 5. Write data/risk_alerts.geojson & copy to frontend/public/data/risk_alerts.geojson
+    DATA_DIR.mkdir(parents=True, exist_ok=True)
+    with open(OUTPUT_GEOJSON, "w", encoding="utf-8") as f:
+        json.dump(geojson_data, f, indent=2)
+
+    FRONTEND_DIR.mkdir(parents=True, exist_ok=True)
+    shutil.copyfile(OUTPUT_GEOJSON, FRONTEND_OUTPUT_GEOJSON)
+
+    # Also save complementary JSON summary if needed
+    summary_json = {
+        "site": SITE.get("name", "sikkim"),
+        "timestamp": timestamp_str,
+        "api_url": exact_url,
+        "counts": {
+            "Low": low_count,
+            "Med": med_count,
+            "High": high_count,
+            "Total": len(features),
+        },
+        "zones": [f["properties"] for f in features],
+    }
+    with open(OUTPUT_JSON, "w", encoding="utf-8") as f:
+        json.dump(summary_json, f, indent=2)
+    shutil.copyfile(OUTPUT_JSON, FRONTEND_OUTPUT_JSON)
+
+    print(f"\nWritten {OUTPUT_GEOJSON}")
+    print(f"Copied to {FRONTEND_OUTPUT_GEOJSON}")
+    print(f"\nRisk Level Counts (Total: {len(features)} zones):")
+    print(f"  Low : {low_count}")
+    print(f"  Med : {med_count}")
+    print(f"  High: {high_count}")
 
 
 if __name__ == "__main__":
