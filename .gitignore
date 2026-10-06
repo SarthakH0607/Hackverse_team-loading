@@ -3,6 +3,6 @@ data/*.tif
 *.env
 .env
 cache/
+data/osm_cache/
 __pycache__/
 *.pyc
-
