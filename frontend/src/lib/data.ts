@@ -91,16 +91,16 @@ export const MONITORED_SITES: SiteInfo[] = [
   },
   {
     id: "kedarnath",
-    name: "Kedarnath — Mandakini Basin (High Risk)",
-    label: "Kedarnath - Mandakini Basin",
+    name: "Kedarnath — Mandakini Basin (2013 Flash Flood)",
+    label: "Kedarnath - Mandakini Basin (2013)",
     coordinates: "30.73° N 79.06° E",
     center: [30.73, 79.06],
-    status: "coming_soon",
-    affectedAreaKm2: 0,
-    affectedDeltaKm2: 0,
-    peopleAtRisk: 0,
-    criticalNodes: 0,
-    sarLockDesc: "SATELLITE CALIBRATION PENDING",
+    status: "active",
+    affectedAreaKm2: 326.4,
+    affectedDeltaKm2: 48.7,
+    peopleAtRisk: 14450,
+    criticalNodes: 5,
+    sarLockDesc: "OPTICAL & RADAR COMBINED LOCK",
   },
 ]
 
@@ -118,21 +118,19 @@ if (supabaseUrl && supabaseKey) {
 }
 
 /**
- * Fetch ranked villages: tries Supabase first, falls back to public/data/villages_ranked.geojson
+ * Fetch ranked villages: tries Supabase first, falls back to public/data geojson
  */
 export async function getRankedVillages(siteId: string = "sikkim"): Promise<{
   data: VillageFeatureCollection
   source: "supabase" | "local"
 }> {
-  if (siteId === "kedarnath") {
-    return {
-      data: { type: "FeatureCollection", features: [] },
-      source: "local",
-    }
-  }
+  const filePath =
+    siteId === "kedarnath"
+      ? "/data/kedarnath_villages_ranked.geojson"
+      : "/data/villages_ranked.geojson"
 
-  // 1. Try Supabase if initialized
-  if (supabase) {
+  // 1. Try Supabase if initialized (only for Sikkim default)
+  if (supabase && siteId === "sikkim") {
     try {
       const { data, error } = await supabase
         .from("villages_ranked")
@@ -140,7 +138,6 @@ export async function getRankedVillages(siteId: string = "sikkim"): Promise<{
         .order("rank", { ascending: true })
 
       if (!error && data && data.length > 0) {
-        // Transform Supabase rows into GeoJSON FeatureCollection if stored as tabular rows
         const features: VillageFeature[] = data.map((item: any) => ({
           type: "Feature",
           geometry: {
@@ -175,15 +172,14 @@ export async function getRankedVillages(siteId: string = "sikkim"): Promise<{
 
   // 2. Fall back to local file
   try {
-    const response = await fetch("/data/villages_ranked.geojson")
+    const response = await fetch(filePath)
     if (!response.ok) {
       throw new Error(`Failed to load local villages geojson: ${response.status}`)
     }
     const json = (await response.json()) as VillageFeatureCollection
     return { data: json, source: "local" }
   } catch (err) {
-    console.error("Failed to load local villages_ranked.geojson:", err)
-    // Return empty fallback collection
+    console.error(`Failed to load local ${filePath}:`, err)
     return {
       data: { type: "FeatureCollection", features: [] },
       source: "local",
@@ -192,21 +188,19 @@ export async function getRankedVillages(siteId: string = "sikkim"): Promise<{
 }
 
 /**
- * Fetch safe zones: tries Supabase first, falls back to public/data/safe_zones.geojson
+ * Fetch safe zones: tries Supabase first, falls back to public/data geojson
  */
 export async function getSafeZones(siteId: string = "sikkim"): Promise<{
   data: SafeZoneFeatureCollection
   source: "supabase" | "local"
 }> {
-  if (siteId === "kedarnath") {
-    return {
-      data: { type: "FeatureCollection", features: [] },
-      source: "local",
-    }
-  }
+  const filePath =
+    siteId === "kedarnath"
+      ? "/data/kedarnath_safe_zones.geojson"
+      : "/data/safe_zones.geojson"
 
-  // 1. Try Supabase if initialized
-  if (supabase) {
+  // 1. Try Supabase if initialized (only for Sikkim default)
+  if (supabase && siteId === "sikkim") {
     try {
       const { data, error } = await supabase
         .from("safe_zones")
@@ -246,17 +240,35 @@ export async function getSafeZones(siteId: string = "sikkim"): Promise<{
 
   // 2. Fall back to local file
   try {
-    const response = await fetch("/data/safe_zones.geojson")
+    const response = await fetch(filePath)
     if (!response.ok) {
       throw new Error(`Failed to load local safe zones geojson: ${response.status}`)
     }
     const json = (await response.json()) as SafeZoneFeatureCollection
     return { data: json, source: "local" }
   } catch (err) {
-    console.error("Failed to load local safe_zones.geojson:", err)
+    console.error(`Failed to load local ${filePath}:`, err)
     return {
       data: { type: "FeatureCollection", features: [] },
       source: "local",
     }
   }
 }
+
+export function getSiteAssets(siteId: string = "sikkim") {
+  if (siteId === "kedarnath") {
+    return {
+      preImage: "/data/kedarnath_pre_rgb.png",
+      postImage: "/data/kedarnath_post_rgb.png",
+      changeOverlay: "/data/kedarnath_change_overlay.png",
+      label: "Kedarnath — Mandakini Basin (2013)",
+    }
+  }
+  return {
+    preImage: "/data/pre_rgb.png",
+    postImage: "/data/post_rgb.png",
+    changeOverlay: "/data/change_overlay.png",
+    label: "Sikkim — Teesta River Flood (Oct 2023)",
+  }
+}
+

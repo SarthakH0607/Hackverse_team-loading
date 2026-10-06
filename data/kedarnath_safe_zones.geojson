@@ -1,0 +1,101 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          79.047,
+          30.574
+        ]
+      },
+      "properties": {
+        "name": "Phata Civil Aviation & NDRF Air Base",
+        "type": "shelter",
+        "lat": 30.574,
+        "lon": 79.047,
+        "subtitle": "Major Rotary-Wing Evacuation Hub & Fuel Depot",
+        "details": "Dual concrete helipads, emergency triage shelter, turbine refuel tanks, SATCOM link.",
+        "generator": "YES (Twin 75kVA Generators)",
+        "potableSpring": "Borewell Water Purification",
+        "elevationDelta": "+320m above riverbed",
+        "bearing": "SOUTH_TERRACE",
+        "distanceKm": 18.2,
+        "estWalkMinutes": 0
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          79.0675,
+          30.7365
+        ]
+      },
+      "properties": {
+        "name": "Kedarnath Temple High-Ground Perimeter",
+        "type": "shelter",
+        "lat": 30.7365,
+        "lon": 79.0675,
+        "subtitle": "Protected Natural Bedrock Elevated Zone",
+        "details": "Protected rear knoll shielded by natural glacial erratic boulder behind temple.",
+        "generator": "Solar Battery + Field Generator",
+        "potableSpring": "Filtered Glacial Melt",
+        "elevationDelta": "+18m above mud torrent",
+        "bearing": "NORTH_KEDAR",
+        "distanceKm": 0.2,
+        "estWalkMinutes": 5
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          79.002,
+          30.631
+        ]
+      },
+      "properties": {
+        "name": "Sonprayag Upper Ridge Evacuation Camp",
+        "type": "shelter",
+        "lat": 30.631,
+        "lon": 79.002,
+        "subtitle": "High Clearance Hillside Evacuation Center",
+        "details": "Terraced school complex, medical first-responder tent, dry food supplies.",
+        "generator": "YES (Diesel Generator 45kVA)",
+        "potableSpring": "Mountain Spring Pipeline",
+        "elevationDelta": "+95m above confluence",
+        "bearing": "WEST_RIDGE",
+        "distanceKm": 0.6,
+        "estWalkMinutes": 18
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          79.029,
+          30.392
+        ]
+      },
+      "properties": {
+        "name": "Agastyamuni Regional Trauma Base Hospital",
+        "type": "hospital",
+        "lat": 30.392,
+        "lon": 79.029,
+        "subtitle": "Full Medical Facility & Critical ICU",
+        "details": "Emergency surgery suite, blood bank, multi-bed wards, dedicated air ambulance pad.",
+        "generator": "YES (Hospital Continuous Power Grid)",
+        "potableSpring": "Municipal Filtered System",
+        "elevationDelta": "+120m valley shelf",
+        "bearing": "SOUTH_VALLEY",
+        "distanceKm": 34.0,
+        "estWalkMinutes": 0
+      }
+    }
+  ]
+}

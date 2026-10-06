@@ -1,0 +1,59 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          79.0669,
+          30.7352
+        ]
+      },
+      "properties": {
+        "id": "ALERT-KEDAR-001",
+        "severity": "CRITICAL",
+        "title": "Chorabari Moraine Breach & Debris Torrent",
+        "description": "Glacial outburst surge has carved dual channels flanking temple. Structural perimeter compromise. Ground evacuation severed.",
+        "action": "Immediate rotary extraction from northern bedrock knoll when weather allows.",
+        "timestamp": "2026-10-06T11:00:00Z"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          79.062,
+          30.6865
+        ]
+      },
+      "properties": {
+        "id": "ALERT-KEDAR-002",
+        "severity": "CRITICAL",
+        "title": "Rambara Gorge Total Transit Interruption",
+        "description": "Narrow gorge inundated by debris flow velocity >12 m/s. All footpaths severed. Stranded clusters on upper scree slopes.",
+        "action": "Airborne food & medicine drops; guide mobile survivors to high ridges.",
+        "timestamp": "2026-10-06T11:05:00Z"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          78.9984,
+          30.6276
+        ]
+      },
+      "properties": {
+        "id": "ALERT-KEDAR-003",
+        "severity": "HIGH",
+        "title": "Sonprayag Confluence Bridge Washout",
+        "description": "Songanga-Mandakini convergence has washed away motor bridge. 1,600+ pilgrims blocked on upstream bank.",
+        "action": "Deploy NDRF zip-line / rope rescue crossings; establish temporary foot suspension bridge.",
+        "timestamp": "2026-10-06T11:10:00Z"
+      }
+    }
+  ]
+}

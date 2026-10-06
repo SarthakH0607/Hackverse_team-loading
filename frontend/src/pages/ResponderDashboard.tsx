@@ -3,6 +3,7 @@ import { Link } from "react-router-dom"
 import {
   getRankedVillages,
   getSafeZones,
+  getSiteAssets,
   MONITORED_SITES,
   SiteInfo,
   VillageFeature,
@@ -33,9 +34,20 @@ import {
   X,
 } from "lucide-react"
 
-// Coordinate mapping helper for Sikkim Teesta III / Chungthang Sector
-const getNodePosition = (name: string, lon: number, lat: number) => {
+// Coordinate mapping helper supporting both Sikkim and Kedarnath sectors
+const getNodePosition = (name: string, lon: number, lat: number, siteId?: string) => {
   const n = name.toLowerCase()
+
+  // Kedarnath Sector Nodes
+  if (siteId === "kedarnath" || n.includes("kedarnath") || n.includes("rambara") || n.includes("gaurikund") || n.includes("sonprayag") || n.includes("phata")) {
+    if (n.includes("kedarnath")) return { left: 55.3, top: 23.8 }
+    if (n.includes("rambara")) return { left: 52.5, top: 45.2 }
+    if (n.includes("gaurikund")) return { left: 32.1, top: 60.6 }
+    if (n.includes("sonprayag")) return { left: 16.3, top: 71.2 }
+    if (n.includes("phata") || n.includes("rampur") || n.includes("guptkashi")) return { left: 42.8, top: 92.0 }
+  }
+
+  // Sikkim Teesta Sector Nodes
   if (n.includes("chungthang")) return { left: 48, top: 54 }
   if (n.includes("lachung")) return { left: 82, top: 18 }
   if (n.includes("lachen")) return { left: 16, top: 22 }
@@ -55,8 +67,18 @@ const getNodePosition = (name: string, lon: number, lat: number) => {
   return { left, top }
 }
 
-const getSafeZonePosition = (name: string, lon: number, lat: number) => {
+const getSafeZonePosition = (name: string, lon: number, lat: number, siteId?: string) => {
   const n = name.toLowerCase()
+
+  // Kedarnath Sector Safe Zones
+  if (siteId === "kedarnath" || n.includes("kedarnath") || n.includes("sonprayag") || n.includes("phata") || n.includes("agastyamuni")) {
+    if (n.includes("kedarnath")) return { left: 56.5, top: 22.0 }
+    if (n.includes("sonprayag")) return { left: 18.5, top: 68.5 }
+    if (n.includes("phata") || n.includes("aviation")) return { left: 44.5, top: 90.0 }
+    if (n.includes("agastyamuni") || n.includes("hospital")) return { left: 34.0, top: 95.0 }
+  }
+
+  // Sikkim Sector Safe Zones
   if (n.includes("chungthang")) return { left: 55, top: 48 }
   if (n.includes("lachen hospital")) return { left: 22, top: 20 }
   if (n.includes("lachen")) return { left: 14, top: 26 }
@@ -104,9 +126,10 @@ export const ResponderDashboard: React.FC = () => {
     safeZones: false,
   })
 
+  const siteAssets = getSiteAssets(currentSite.id)
   const comparisonContainerRef = useRef<HTMLDivElement>(null)
 
-  // Verify images exist on mount
+  // Verify images exist whenever currentSite changes
   useEffect(() => {
     const checkImage = (src: string, setError: (err: boolean) => void) => {
       const img = new Image()
@@ -115,9 +138,9 @@ export const ResponderDashboard: React.FC = () => {
       img.src = src
     }
 
-    checkImage("/data/pre_rgb.png", setPreImageError)
-    checkImage("/data/post_rgb.png", setPostImageError)
-  }, [])
+    checkImage(siteAssets.preImage, setPreImageError)
+    checkImage(siteAssets.postImage, setPostImageError)
+  }, [currentSite.id, siteAssets.preImage, siteAssets.postImage])
 
   // Load village and safe zone data
   useEffect(() => {
@@ -133,8 +156,11 @@ export const ResponderDashboard: React.FC = () => {
         const feats = vRes.data.features || []
         setVillages(feats)
         setSafeZones(sRes.data.features || [])
+        setVisibleCount(2) // Keep compact view by default with read-more
         if (feats.length > 0) {
           setSelectedVillage(feats[0])
+        } else {
+          setSelectedVillage(null)
         }
       })
       .catch((err) => {
@@ -197,9 +223,9 @@ export const ResponderDashboard: React.FC = () => {
 
   // Check missing image error
   const missingError = preImageError
-    ? "Image missing: public/data/pre_rgb.png"
+    ? `Image missing: ${siteAssets.preImage}`
     : postImageError
-    ? "Image missing: public/data/post_rgb.png"
+    ? `Image missing: ${siteAssets.postImage}`
     : null
 
   return (
@@ -405,14 +431,14 @@ export const ResponderDashboard: React.FC = () => {
               }}
             >
               <img
-                src="/data/pre_rgb.png"
-                alt="Before (Sep 2023)"
+                src={siteAssets.preImage}
+                alt="Before Disaster"
                 className="w-full h-full object-cover filter brightness-[0.98] contrast-[1.05]"
                 onError={() => setPreImageError(true)}
               />
             </div>
 
-            {/* Right Image: AFTER (Oct 2023 onwards Optical RGB) */}
+            {/* Right Image: AFTER (Disaster Surge Optical RGB) */}
             <div
               className="absolute inset-0 overflow-hidden pointer-events-none"
               style={{
@@ -420,8 +446,8 @@ export const ResponderDashboard: React.FC = () => {
               }}
             >
               <img
-                src="/data/post_rgb.png"
-                alt="After (Oct 2023 onwards)"
+                src={siteAssets.postImage}
+                alt="After Disaster"
                 className="w-full h-full object-cover filter brightness-[0.98] contrast-[1.05]"
                 onError={() => setPostImageError(true)}
               />
@@ -431,14 +457,14 @@ export const ResponderDashboard: React.FC = () => {
                 <>
                   {/* Subtle blend of raster change without blinding red noise */}
                   <img
-                    src="/data/change_overlay.png"
+                    src={siteAssets.changeOverlay}
                     alt="Detected Change"
                     style={{ opacity: changeOpacity / 100 }}
                     className="absolute inset-0 w-full h-full object-cover mix-blend-color-dodge pointer-events-none filter blur-[0.4px] contrast-150"
                   />
 
                   {/* Clean Vector Flood Swath / Impact Corridor */}
-                  <svg className="absolute inset-0 w-full h-full pointer-events-none z-10">
+                  <svg className="absolute inset-0 w-full h-full pointer-events-none z-10" viewBox="0 0 1000 1000" preserveAspectRatio="none">
                     <defs>
                       <linearGradient id="floodGlow" x1="0%" y1="0%" x2="0%" y2="100%">
                         <stop offset="0%" stopColor="#06b6d4" stopOpacity="0.8" />
@@ -446,23 +472,47 @@ export const ResponderDashboard: React.FC = () => {
                         <stop offset="100%" stopColor="#f59e0b" stopOpacity="0.8" />
                       </linearGradient>
                     </defs>
-                    {/* Teesta Flood Surge Corridor */}
-                    <path
-                      d="M 280,60 Q 380,180 480,320 T 470,440 T 410,580 T 360,780 T 320,950"
-                      fill="none"
-                      stroke="url(#floodGlow)"
-                      strokeWidth="18"
-                      strokeOpacity="0.55"
-                      strokeLinecap="round"
-                    />
-                    <path
-                      d="M 280,60 Q 380,180 480,320 T 470,440 T 410,580 T 360,780 T 320,950"
-                      fill="none"
-                      stroke="#ffffff"
-                      strokeWidth="3"
-                      strokeOpacity="0.9"
-                      strokeDasharray="10 6"
-                    />
+                    {currentSite.id === "kedarnath" ? (
+                      <>
+                        {/* Mandakini Debris Torrent Corridor */}
+                        <path
+                          d="M 560,220 Q 560,350 545,520 T 530,690 T 420,810 T 325,930 T 165,1090 T 260,1200 T 430,1470"
+                          fill="none"
+                          stroke="url(#floodGlow)"
+                          strokeWidth="24"
+                          strokeOpacity="0.6"
+                          strokeLinecap="round"
+                        />
+                        <path
+                          d="M 560,220 Q 560,350 545,520 T 530,690 T 420,810 T 325,930 T 165,1090 T 260,1200 T 430,1470"
+                          fill="none"
+                          stroke="#ffffff"
+                          strokeWidth="3"
+                          strokeOpacity="0.9"
+                          strokeDasharray="10 6"
+                        />
+                      </>
+                    ) : (
+                      <>
+                        {/* Teesta Flood Surge Corridor */}
+                        <path
+                          d="M 280,60 Q 380,180 480,320 T 470,440 T 410,580 T 360,780 T 320,950"
+                          fill="none"
+                          stroke="url(#floodGlow)"
+                          strokeWidth="18"
+                          strokeOpacity="0.55"
+                          strokeLinecap="round"
+                        />
+                        <path
+                          d="M 280,60 Q 380,180 480,320 T 470,440 T 410,580 T 360,780 T 320,950"
+                          fill="none"
+                          stroke="#ffffff"
+                          strokeWidth="3"
+                          strokeOpacity="0.9"
+                          strokeDasharray="10 6"
+                        />
+                      </>
+                    )}
                   </svg>
                 </>
               )}
@@ -493,14 +543,22 @@ export const ResponderDashboard: React.FC = () => {
             <div className="absolute top-4 left-4 z-20 pointer-events-none">
               <div className="font-mono text-xs font-bold tracking-wide text-neutral-100 bg-neutral-950/90 px-3.5 py-1.5 rounded-md border border-neutral-700 shadow-2xl backdrop-blur-md flex items-center space-x-2">
                 <span className="w-2 h-2 rounded-full bg-neutral-400" />
-                <span>BEFORE // Sep 2023 (Pre-Flood Sentinel-2)</span>
+                <span>
+                  {currentSite.id === "kedarnath"
+                    ? "BEFORE // May 2013 (Optical Satellite)"
+                    : "BEFORE // Sep 2023 (Pre-Flood Sentinel-2)"}
+                </span>
               </div>
             </div>
 
             <div className="absolute top-4 right-4 z-20 pointer-events-none">
               <div className="font-mono text-xs font-bold tracking-wide text-red-300 bg-neutral-950/90 px-3.5 py-1.5 rounded-md border border-red-700/80 shadow-2xl backdrop-blur-md flex items-center space-x-2">
                 <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
-                <span>AFTER // Oct 2023 (Post-Flood Impact)</span>
+                <span>
+                  {currentSite.id === "kedarnath"
+                    ? "AFTER // Jun 2013 (Mandakini Debris Torrent)"
+                    : "AFTER // Oct 2023 (Post-Flood Impact)"}
+                </span>
               </div>
             </div>
 
@@ -510,28 +568,55 @@ export const ResponderDashboard: React.FC = () => {
             {layers.riskOverlay && (
               <div className="absolute inset-0 pointer-events-none z-15">
                 <svg className="w-full h-full">
-                  {/* High Risk Basins with transparent polygon tints */}
-                  <polygon
-                    points="200,80 380,80 420,340 180,300"
-                    fill="rgba(239, 68, 68, 0.22)"
-                    stroke="#ef4444"
-                    strokeWidth="2"
-                    strokeDasharray="6 3"
-                  />
-                  <text x="210" y="110" fill="#fca5a5" fontSize="12" fontFamily="monospace" fontWeight="bold">
-                    ZONE 1: TEESTA III RESERVOIR BASIN (HIGH RISK)
-                  </text>
+                  {currentSite.id === "kedarnath" ? (
+                    <>
+                      <polygon
+                        points="450,180 670,180 650,440 460,420"
+                        fill="rgba(239, 68, 68, 0.22)"
+                        stroke="#ef4444"
+                        strokeWidth="2"
+                        strokeDasharray="6 3"
+                      />
+                      <text x="470" y="210" fill="#fca5a5" fontSize="12" fontFamily="monospace" fontWeight="bold">
+                        ZONE 1: CHORABARI MORAINE BREACH & TEMPLE ZONE
+                      </text>
 
-                  <polygon
-                    points="320,380 540,360 480,680 280,660"
-                    fill="rgba(245, 158, 11, 0.20)"
-                    stroke="#f59e0b"
-                    strokeWidth="2"
-                    strokeDasharray="6 3"
-                  />
-                  <text x="330" y="410" fill="#fde68a" fontSize="12" fontFamily="monospace" fontWeight="bold">
-                    ZONE 4: CHUNGTHANG-MANGA CORRIDOR (ELEVATED RISK)
-                  </text>
+                      <polygon
+                        points="420,620 640,620 540,840 380,820"
+                        fill="rgba(245, 158, 11, 0.20)"
+                        stroke="#f59e0b"
+                        strokeWidth="2"
+                        strokeDasharray="6 3"
+                      />
+                      <text x="400" y="650" fill="#fde68a" fontSize="12" fontFamily="monospace" fontWeight="bold">
+                        ZONE 2: RAMBARA GORGE CONSTRICTION
+                      </text>
+                    </>
+                  ) : (
+                    <>
+                      <polygon
+                        points="200,80 380,80 420,340 180,300"
+                        fill="rgba(239, 68, 68, 0.22)"
+                        stroke="#ef4444"
+                        strokeWidth="2"
+                        strokeDasharray="6 3"
+                      />
+                      <text x="210" y="110" fill="#fca5a5" fontSize="12" fontFamily="monospace" fontWeight="bold">
+                        ZONE 1: TEESTA III RESERVOIR BASIN (HIGH RISK)
+                      </text>
+
+                      <polygon
+                        points="320,380 540,360 480,680 280,660"
+                        fill="rgba(245, 158, 11, 0.20)"
+                        stroke="#f59e0b"
+                        strokeWidth="2"
+                        strokeDasharray="6 3"
+                      />
+                      <text x="330" y="410" fill="#fde68a" fontSize="12" fontFamily="monospace" fontWeight="bold">
+                        ZONE 4: CHUNGTHANG-MANGA CORRIDOR (ELEVATED RISK)
+                      </text>
+                    </>
+                  )}
                 </svg>
               </div>
             )}
@@ -540,7 +625,7 @@ export const ResponderDashboard: React.FC = () => {
             {layers.priorityNodes && (
               <div className="absolute inset-0 pointer-events-auto z-20">
                 {villages.slice(0, 10).map((v) => {
-                  const pos = getNodePosition(v.properties.name, v.geometry.coordinates[0], v.geometry.coordinates[1])
+                  const pos = getNodePosition(v.properties.name, v.geometry.coordinates[0], v.geometry.coordinates[1], currentSite.id)
                   const isSelected = selectedVillage?.properties.rank === v.properties.rank
 
                   return (
@@ -602,7 +687,7 @@ export const ResponderDashboard: React.FC = () => {
             {layers.safeZones && (
               <div className="absolute inset-0 pointer-events-auto z-20">
                 {safeZones.slice(0, 8).map((sz, idx) => {
-                  const pos = getSafeZonePosition(sz.properties.name, sz.geometry.coordinates[0], sz.geometry.coordinates[1])
+                  const pos = getSafeZonePosition(sz.properties.name, sz.geometry.coordinates[0], sz.geometry.coordinates[1], currentSite.id)
                   const isHospital = sz.properties.type === "hospital"
                   const isSelected = selectedSafeZone?.properties.name === sz.properties.name
 

@@ -1,0 +1,130 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          79.0669,
+          30.7352
+        ]
+      },
+      "properties": {
+        "rank": 1,
+        "name": "Kedarnath Town & Temple Sanctuary",
+        "population": 4200,
+        "score": 98.4,
+        "reason": "Chorabari moraine outburst impact zone; Mandakini dual surge channels; perimeter structures demolished; bedrock sanctuary isolated.",
+        "priority": "CRITICAL",
+        "region": "Upper Mandakini / Glacier Valley",
+        "waterSurgeDelta": "+7.2m Flash Inundation",
+        "isolatedCount": "3,400+ Stranded Pilgrims",
+        "roadStatus": "ALL ACCESS TRAILS WASHED OUT",
+        "confidence": "99.4%",
+        "rainfallRisk": "Extreme (Cloudburst 340mm/24h)",
+        "riverGauge": "Peak Outburst Discharge 1,420 m\u00b3/s"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          79.062,
+          30.6865
+        ]
+      },
+      "properties": {
+        "rank": 2,
+        "name": "Rambara Gorge Corridor",
+        "population": 1850,
+        "score": 94.7,
+        "reason": "Complete gorge channel inundation; bridges swept away; transit settlements destroyed; high-risk bottleneck.",
+        "priority": "CRITICAL",
+        "region": "Middle Mandakini Canyon",
+        "waterSurgeDelta": "+8.9m Gorge Constriction Surge",
+        "isolatedCount": "1,100+ Trapped on Slopes",
+        "roadStatus": "100% ROUTE DESTROYED",
+        "confidence": "98.1%",
+        "rainfallRisk": "Severe Slope Instability",
+        "riverGauge": "Torrential Debris Velocity 14 m/s"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          79.0261,
+          30.6517
+        ]
+      },
+      "properties": {
+        "rank": 3,
+        "name": "Gaurikund Base Camp",
+        "population": 3400,
+        "score": 89.2,
+        "reason": "Thermal spring basin inundated; parking platforms and pilgrim accommodations collapsed into Mandakini.",
+        "priority": "HIGH",
+        "region": "Lower Mandakini Valley",
+        "waterSurgeDelta": "+5.4m Riverbank Erosion",
+        "isolatedCount": "2,200 Evacuees Waiting Extraction",
+        "roadStatus": "VEHICULAR ACCESS SEVERED",
+        "confidence": "96.5%",
+        "rainfallRisk": "Active Mudflows & Rockfall",
+        "riverGauge": "River Gauge Red Alarm Triggered"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          78.9984,
+          30.6276
+        ]
+      },
+      "properties": {
+        "rank": 4,
+        "name": "Sonprayag Confluence Hub",
+        "population": 2100,
+        "score": 82.5,
+        "reason": "Mandakini and Songanga confluence surge; major motor bridge washed away; primary ground evacuation barrier.",
+        "priority": "HIGH",
+        "region": "River Confluence Gateway",
+        "waterSurgeDelta": "+4.8m Backwater Surge",
+        "isolatedCount": "1,600 Pilgrims at Chotti Lincholi trail",
+        "roadStatus": "MAIN BRIDGE DEMOLISHED",
+        "confidence": "95.2%",
+        "rainfallRisk": "High Water Level Warning",
+        "riverGauge": "Confluence Flow 880 m\u00b3/s"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          79.045,
+          30.572
+        ]
+      },
+      "properties": {
+        "rank": 5,
+        "name": "Phata Helipad Staging Terminal",
+        "population": 2900,
+        "score": 45.0,
+        "reason": "Primary rotary wing landing strip; emergency relief fuel point; casualty triage depot for airborne rescue.",
+        "priority": "MONITORED",
+        "region": "Lower Mandakini Shelf",
+        "waterSurgeDelta": "High Terrace (+0.0m)",
+        "isolatedCount": "Active Evacuation Hub (Zero Cutoff)",
+        "roadStatus": "HIGHWAY OPERATIONAL SOUTHWARD",
+        "confidence": "99.1%",
+        "rainfallRisk": "Mountain Fog & Flight Visibility Watch",
+        "riverGauge": "Safe Above Surge Level"
+      }
+    }
+  ]
+}
