@@ -1,0 +1,159 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [88.647, 27.604]
+      },
+      "properties": {
+        "rank": 1,
+        "name": "Chungthang Basin",
+        "population": 3420,
+        "score": 0.98,
+        "reason": "Hydro dam breach; primary bridge washed out; cutting 100% road transit.",
+        "priority": "CRITICAL",
+        "region": "Teesta III Basin",
+        "waterSurgeDelta": "+312%",
+        "isolatedCount": "85-120 isolated",
+        "roadStatus": "Bridge NH-10 Severed 100%",
+        "confidence": "98% confidence (High)",
+        "rainfallRisk": "HIGH RISK: 114mm Projected",
+        "riverGauge": "+4.8m (Breached)"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [88.528, 27.431]
+      },
+      "properties": {
+        "rank": 2,
+        "name": "Dikchu Low Terrace",
+        "population": 2180,
+        "score": 0.92,
+        "reason": "Riverbed expanded +120m; water entering ground floor dwellings.",
+        "priority": "HIGH",
+        "region": "East Sikkim Flank",
+        "waterSurgeDelta": "+184%",
+        "isolatedCount": "40-60 isolated",
+        "roadStatus": "EVAC ORDERED",
+        "confidence": "92% confidence",
+        "rainfallRisk": "ELEVATED RISK: 82mm Projected",
+        "riverGauge": "+3.4m (Warning)"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [88.498, 27.235]
+      },
+      "properties": {
+        "rank": 3,
+        "name": "Singtam Market Flank",
+        "population": 5640,
+        "score": 0.81,
+        "reason": "Silt deposition impeding drainage; NH-10 partially submerged.",
+        "priority": "ELEVATED",
+        "region": "NH-10 Nexus",
+        "waterSurgeDelta": "+142%",
+        "isolatedCount": "120-150 isolated",
+        "roadStatus": "NH-10 Flooded",
+        "confidence": "89% confidence",
+        "rainfallRisk": "MODERATE: 54mm Projected",
+        "riverGauge": "+2.9m (Alert)"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [88.532, 27.177]
+      },
+      "properties": {
+        "rank": 4,
+        "name": "Rangpo Border Spur",
+        "population": 4210,
+        "score": 0.65,
+        "reason": "Downstream surge wave buffer diminishing; evacuation ongoing.",
+        "priority": "MONITORED",
+        "region": "South Basin Gate",
+        "waterSurgeDelta": "+84%",
+        "isolatedCount": "15-30 isolated",
+        "roadStatus": "Active Sluice Buffer",
+        "confidence": "85% confidence",
+        "rainfallRisk": "MODERATE: 41mm Projected",
+        "riverGauge": "+2.1m (Normal-High)"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [88.528, 27.502]
+      },
+      "properties": {
+        "rank": 5,
+        "name": "Mangan High Terrace",
+        "population": 3100,
+        "score": 0.42,
+        "reason": "Topographic elevation provides natural flood barrier; route stable.",
+        "priority": "STABLE",
+        "region": "North Ridge Outpost",
+        "waterSurgeDelta": "+21%",
+        "isolatedCount": "None isolated",
+        "roadStatus": "Route Stable",
+        "confidence": "94% confidence",
+        "rainfallRisk": "LOW RISK: 18mm Projected",
+        "riverGauge": "+1.2m (Normal)"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [88.556, 27.716]
+      },
+      "properties": {
+        "rank": 6,
+        "name": "Lachen North Corridor",
+        "population": 1850,
+        "score": 0.74,
+        "reason": "Glacial lake outburst flood debris blocking tributary mouth; secondary road impassable.",
+        "priority": "HIGH",
+        "region": "North Sikkim Valley",
+        "waterSurgeDelta": "+160%",
+        "isolatedCount": "60-80 isolated",
+        "roadStatus": "Valley Route Cut",
+        "confidence": "91% confidence",
+        "rainfallRisk": "ELEVATED: 72mm Projected",
+        "riverGauge": "+3.1m (Warning)"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [88.742, 27.689]
+      },
+      "properties": {
+        "rank": 7,
+        "name": "Lachung Valley Terrace",
+        "population": 2490,
+        "score": 0.58,
+        "reason": "Bridge clearance reduced to 0.8m; high silt load monitoring in progress.",
+        "priority": "MONITORED",
+        "region": "Lachung Confluence",
+        "waterSurgeDelta": "+65%",
+        "isolatedCount": "10-20 isolated",
+        "roadStatus": "Single Lane Passable",
+        "confidence": "87% confidence",
+        "rainfallRisk": "MODERATE: 38mm Projected",
+        "riverGauge": "+2.0m (Alert)"
+      }
+    }
+  ]
+}
