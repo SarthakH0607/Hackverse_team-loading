@@ -1,1 +1,8 @@
 data/*.tif
+*.tif
+*.env
+.env
+cache/
+__pycache__/
+*.pyc
+
