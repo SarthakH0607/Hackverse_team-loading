@@ -1,0 +1,423 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Disaster Intelligence Incident Report - Sikkim Teesta Valley Flash Flood (Oct 2023)</title>
+  <style>
+    :root {
+      --primary: #1e3a8a;
+      --primary-light: #3b82f6;
+      --accent-danger: #dc2626;
+      --accent-warn: #d97706;
+      --accent-safe: #16a34a;
+      --bg-dark: #0f172a;
+      --bg-card: #1e293b;
+      --text-main: #f8fafc;
+      --text-muted: #94a3b8;
+      --border: #334155;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background: var(--bg-dark);
+      color: var(--text-main);
+      line-height: 1.6;
+      padding: 30px 20px;
+    }
+    .container { max-width: 1100px; margin: 0 auto; }
+    .header {
+      background: linear-gradient(135deg, #1e1b4b 0%, #1e3a8a 100%);
+      border: 1px solid #4338ca;
+      padding: 30px;
+      border-radius: 12px;
+      margin-bottom: 25px;
+      box-shadow: 0 10px 25px rgba(0,0,0,0.4);
+    }
+    .badge {
+      display: inline-block;
+      padding: 4px 12px;
+      font-size: 0.75rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      border-radius: 9999px;
+      margin-bottom: 12px;
+    }
+    .badge-alert { background: #fee2e2; color: #991b1b; }
+    .badge-live { background: #dcfce7; color: #166534; }
+    h1 { font-size: 2rem; margin-bottom: 8px; color: #ffffff; }
+    .subtitle { color: #cbd5e1; font-size: 1rem; }
+    .meta-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 15px;
+      margin-top: 20px;
+      padding-top: 20px;
+      border-top: 1px solid rgba(255,255,255,0.15);
+      font-size: 0.85rem;
+    }
+    .meta-item strong { display: block; color: #93c5fd; }
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 15px;
+      margin-bottom: 25px;
+    }
+    .stat-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 20px;
+      text-align: center;
+    }
+    .stat-val { font-size: 2rem; font-weight: 800; color: #38bdf8; margin-bottom: 4px; }
+    .stat-val.danger { color: #f87171; }
+    .stat-val.safe { color: #4ade80; }
+    .stat-label { font-size: 0.85rem; color: var(--text-muted); text-transform: uppercase; font-weight: 600; }
+    .section {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 25px;
+      margin-bottom: 25px;
+    }
+    .section-title {
+      font-size: 1.25rem;
+      margin-bottom: 15px;
+      color: #f1f5f9;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    table { width: 100%; border-collapse: collapse; font-size: 0.9rem; text-align: left; }
+    th {
+      background: #0f172a;
+      color: #94a3b8;
+      padding: 12px;
+      font-weight: 600;
+      border-bottom: 2px solid var(--border);
+    }
+    td { padding: 12px; border-bottom: 1px solid var(--border); }
+    tr:hover { background: rgba(255,255,255,0.03); }
+    .rank-pill {
+      display: inline-block;
+      width: 28px;
+      height: 28px;
+      line-height: 28px;
+      text-align: center;
+      border-radius: 50%;
+      background: #334155;
+      font-weight: 700;
+      font-size: 0.8rem;
+    }
+    .rank-1 { background: #dc2626; color: white; }
+    .rank-2 { background: #ea580c; color: white; }
+    .rank-3 { background: #d97706; color: white; }
+    .score-bar {
+      height: 8px;
+      background: #334155;
+      border-radius: 4px;
+      overflow: hidden;
+      margin-top: 4px;
+    }
+    .score-fill { height: 100%; background: linear-gradient(90deg, #38bdf8, #ef4444); }
+    .alert-box {
+      padding: 15px;
+      border-radius: 8px;
+      background: rgba(217, 119, 6, 0.15);
+      border-left: 4px solid var(--accent-warn);
+      margin-bottom: 15px;
+      font-size: 0.9rem;
+    }
+    .alert-box.info {
+      background: rgba(59, 130, 246, 0.15);
+      border-left-color: var(--primary-light);
+    }
+    .footer {
+      text-align: center;
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      margin-top: 40px;
+      padding-top: 20px;
+      border-top: 1px solid var(--border);
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <span class="badge badge-alert">AUTOMATED INCIDENT BRIEFING</span>
+      <span class="badge badge-live">SAR CHANGE INTELLIGENCE</span>
+      <h1>Sikkim Teesta Valley Flash Flood (Oct 2023)</h1>
+      <p class="subtitle">South Lhonak Glacial Lake Outburst Flood (GLOF) & Flash Flood | Incident Date: 04 Oct 2023</p>
+      <div class="meta-grid">
+        <div class="meta-item"><strong>Pre-Event Window</strong>15 Sep - 02 Oct 2023</div>
+        <div class="meta-item"><strong>Post-Event Window</strong>05 Oct - 15 Oct 2023</div>
+        <div class="meta-item"><strong>Sensor & Orbit</strong>Sentinel-1 (SAR / Radar C-band, VV Polarization) (GEE)</div>
+        <div class="meta-item"><strong>Report Generated</strong>2026-10-06 04:23:41 UTC</div>
+      </div>
+    </div>
+
+    <!-- Stats Grid -->
+    <div class="stats-grid">
+      <div class="stat-card">
+        <div class="stat-val danger">514.18 km²</div>
+        <div class="stat-label">Inundated / Scoured Area</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-val danger">125,604</div>
+        <div class="stat-label">Estimated Exposed Pop.</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-val">68</div>
+        <div class="stat-label">Settlements Prioritized</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-val safe">103</div>
+        <div class="stat-label">Verified Safe Zones</div>
+      </div>
+    </div>
+
+    <!-- Priority Settlements -->
+    <div class="section">
+      <h2 class="section-title">🚨 Top 10 Priority Settlements ("Go Here First")</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Rank</th>
+            <th>Settlement</th>
+            <th>Population</th>
+            <th>Priority Score</th>
+            <th>Diagnostic Reason</th>
+          </tr>
+        </thead>
+        <tbody>
+          
+          <tr>
+            <td>
+              <span class="rank-pill rank-1">
+                1
+              </span>
+            </td>
+            <td><strong>Lachung</strong></td>
+            <td>6,622</td>
+            <td style="width: 140px;">
+              <strong>46.6</strong> / 100
+              <div class="score-bar">
+                <div class="score-fill" style="width: 46.58%;"></div>
+              </div>
+            </td>
+            <td style="color: #cbd5e1; font-size: 0.85rem;">Moderate impact (18.1% area affected); Pop 6,622; roads accessible; 19.4 km to nearest hospital</td>
+          </tr>
+          
+          <tr>
+            <td>
+              <span class="rank-pill rank-2">
+                2
+              </span>
+            </td>
+            <td><strong>Chungthang</strong></td>
+            <td>1,357</td>
+            <td style="width: 140px;">
+              <strong>45.1</strong> / 100
+              <div class="score-bar">
+                <div class="score-fill" style="width: 45.09%;"></div>
+              </div>
+            </td>
+            <td style="color: #cbd5e1; font-size: 0.85rem;">Moderate impact (20.8% area affected); Pop 1,357; roads accessible; 16.8 km to nearest hospital</td>
+          </tr>
+          
+          <tr>
+            <td>
+              <span class="rank-pill rank-3">
+                3
+              </span>
+            </td>
+            <td><strong>Rongli</strong></td>
+            <td>6,543</td>
+            <td style="width: 140px;">
+              <strong>44.4</strong> / 100
+              <div class="score-bar">
+                <div class="score-fill" style="width: 44.39%;"></div>
+              </div>
+            </td>
+            <td style="color: #cbd5e1; font-size: 0.85rem;">Moderate impact (16.7% area affected); Pop 6,543; roads accessible; 11.1 km to nearest hospital</td>
+          </tr>
+          
+          <tr>
+            <td>
+              <span class="rank-pill ">
+                4
+              </span>
+            </td>
+            <td><strong>Raley</strong></td>
+            <td>1,381</td>
+            <td style="width: 140px;">
+              <strong>43.0</strong> / 100
+              <div class="score-bar">
+                <div class="score-fill" style="width: 43.05%;"></div>
+              </div>
+            </td>
+            <td style="color: #cbd5e1; font-size: 0.85rem;">Moderate impact (18.1% area affected); Pop 1,381; roads accessible; 11.4 km to nearest hospital</td>
+          </tr>
+          
+          <tr>
+            <td>
+              <span class="rank-pill ">
+                5
+              </span>
+            </td>
+            <td><strong>Sakyong</strong></td>
+            <td>498</td>
+            <td style="width: 140px;">
+              <strong>42.4</strong> / 100
+              <div class="score-bar">
+                <div class="score-fill" style="width: 42.37%;"></div>
+              </div>
+            </td>
+            <td style="color: #cbd5e1; font-size: 0.85rem;">Moderate impact (18.1% area affected); Pop 498; roads accessible; 15.0 km to nearest hospital</td>
+          </tr>
+          
+          <tr>
+            <td>
+              <span class="rank-pill ">
+                6
+              </span>
+            </td>
+            <td><strong>Unnamed</strong></td>
+            <td>1,382</td>
+            <td style="width: 140px;">
+              <strong>42.4</strong> / 100
+              <div class="score-bar">
+                <div class="score-fill" style="width: 42.37%;"></div>
+              </div>
+            </td>
+            <td style="color: #cbd5e1; font-size: 0.85rem;">Moderate impact (16.6% area affected); Pop 1,382; roads accessible; 11.4 km to nearest hospital</td>
+          </tr>
+          
+          <tr>
+            <td>
+              <span class="rank-pill ">
+                7
+              </span>
+            </td>
+            <td><strong>Lingmoo</strong></td>
+            <td>1,344</td>
+            <td style="width: 140px;">
+              <strong>41.8</strong> / 100
+              <div class="score-bar">
+                <div class="score-fill" style="width: 41.8%;"></div>
+              </div>
+            </td>
+            <td style="color: #cbd5e1; font-size: 0.85rem;">Moderate impact (16.9% area affected); Pop 1,344; roads accessible; 11.0 km to nearest hospital</td>
+          </tr>
+          
+          <tr>
+            <td>
+              <span class="rank-pill ">
+                8
+              </span>
+            </td>
+            <td><strong>Lingzya</strong></td>
+            <td>1,348</td>
+            <td style="width: 140px;">
+              <strong>41.3</strong> / 100
+              <div class="score-bar">
+                <div class="score-fill" style="width: 41.34%;"></div>
+              </div>
+            </td>
+            <td style="color: #cbd5e1; font-size: 0.85rem;">Moderate impact (17.3% area affected); Pop 1,348; roads accessible; 10.6 km to nearest hospital</td>
+          </tr>
+          
+          <tr>
+            <td>
+              <span class="rank-pill ">
+                9
+              </span>
+            </td>
+            <td><strong>Nanga</strong></td>
+            <td>1,279</td>
+            <td style="width: 140px;">
+              <strong>41.3</strong> / 100
+              <div class="score-bar">
+                <div class="score-fill" style="width: 41.34%;"></div>
+              </div>
+            </td>
+            <td style="color: #cbd5e1; font-size: 0.85rem;">Moderate impact (18.0% area affected); Pop 1,279; roads accessible; 10.5 km to nearest hospital</td>
+          </tr>
+          
+          <tr>
+            <td>
+              <span class="rank-pill ">
+                10
+              </span>
+            </td>
+            <td><strong>Kyangsala</strong></td>
+            <td>1,251</td>
+            <td style="width: 140px;">
+              <strong>40.8</strong> / 100
+              <div class="score-bar">
+                <div class="score-fill" style="width: 40.79%;"></div>
+              </div>
+            </td>
+            <td style="color: #cbd5e1; font-size: 0.85rem;">Moderate impact (17.0% area affected); Pop 1,251; roads accessible; 10.4 km to nearest hospital</td>
+          </tr>
+          
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Safe Zones Breakdown -->
+    <div class="section">
+      <h2 class="section-title">🛡️ Offline Field Evacuation & Safe Zones</h2>
+      <div class="stats-grid" style="margin-bottom: 0;">
+        <div class="stat-card">
+          <div class="stat-val safe">13</div>
+          <div class="stat-label">Operational Hospitals / Clinics</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-val">89</div>
+          <div class="stat-label">Shelters & Monasteries (&lt;15° slope)</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-val">1</div>
+          <div class="stat-label">Safe Clean Water Points (&gt;200m river)</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Compound Weather Risk Alert -->
+    <div class="section">
+      <h2 class="section-title">🌦️ Secondary Weather Risk & Forecast Alert</h2>
+      <div class="alert-box">
+        <strong>⚠️ OPERATIONAL RISK ALERT (NOT A PREDICTION):</strong><br>
+        NOTICE: This is an emergency risk alert, NOT a deterministic prediction. Glacial Lake Outburst Floods (GLOFs) are non-meteorological events. This alert evaluates secondary rainfall-induced landslide reactivation on destabilized slopes.
+      </div>
+      <p style="font-size: 0.9rem; color: #cbd5e1; margin-bottom: 10px;">
+        <strong>Regional 7-Day Rainfall Outlook (Open-Meteo):</strong>
+        Total Accumulated: <strong>36.5 mm</strong> | Max 24h Intensity: <strong>16.8 mm</strong> | Max Probability: <strong>84%</strong>.
+      </p>
+    </div>
+
+    <!-- Methodology & Confidence Notes -->
+    <div class="section">
+      <h2 class="section-title">🛰️ Satellite Radar Methodology & Technical Confidence</h2>
+      <div class="alert-box info">
+        <strong>Why Synthetic Aperture Radar (SAR)?</strong><br>
+        Optical satellites fail during monsoon disasters due to persistent 100% cloud cover. Sentinel-1 C-band microwave radar penetrates clouds, rain, and smoke.
+        Smooth water bodies specularly reflect radar pulses away (dark pixels, negative dB change), while scoured debris and demolished structures cause rough volumetric scattering (positive dB change).
+      </div>
+      <ul style="padding-left: 20px; font-size: 0.88rem; color: #94a3b8; line-height: 1.8;">
+        <li><strong>Confidence Calibration:</strong> Measured based on statistical distance from the background threshold (|diff| &gt; 3.0 dB). Steep slopes (&gt;35°) are filtered to prevent terrain-layover false positives.</li>
+        <li><strong>Road Blockage Assessment:</strong> Evaluates intersection of drivable OSM road segments with satellite change pixels within 1.5 km of each settlement.</li>
+        <li><strong>Hospital Isolation:</strong> Evaluates Euclidean and network distances from villages to unaffected healthcare centers.</li>
+      </ul>
+    </div>
+
+    <div class="footer">
+      Disaster Change-Intelligence System | Hackathon Prototype | Generated automatically via Python, Rasterio & GeoPandas
+    </div>
+  </div>
+</body>
+</html>

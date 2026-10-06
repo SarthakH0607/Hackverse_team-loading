@@ -1,0 +1,127 @@
+{
+  "title": "Disaster Risk & Weather Alert Summary",
+  "site": "Sikkim Teesta Valley Flash Flood (Oct 2023)",
+  "generated_at": "2026-10-06 04:23:15 UTC",
+  "disclaimer": "NOTICE: This is an emergency risk alert, NOT a deterministic prediction. Glacial Lake Outburst Floods (GLOFs) are non-meteorological events. This alert evaluates secondary rainfall-induced landslide reactivation on destabilized slopes.",
+  "weather_summary": {
+    "status": "success",
+    "total_7d_precip_mm": 36.5,
+    "max_daily_precip_mm": 16.8,
+    "max_prob_pct": 84,
+    "daily_forecast": [
+      {
+        "date": "2026-10-06",
+        "precip_mm": 1.6,
+        "prob_pct": 76
+      },
+      {
+        "date": "2026-10-07",
+        "precip_mm": 3.9,
+        "prob_pct": 53
+      },
+      {
+        "date": "2026-10-08",
+        "precip_mm": 1.6,
+        "prob_pct": 63
+      },
+      {
+        "date": "2026-10-09",
+        "precip_mm": 12.6,
+        "prob_pct": 84
+      },
+      {
+        "date": "2026-10-10",
+        "precip_mm": 16.8,
+        "prob_pct": 74
+      },
+      {
+        "date": "2026-10-11",
+        "precip_mm": 0.0,
+        "prob_pct": 13
+      },
+      {
+        "date": "2026-10-12",
+        "precip_mm": 0.0,
+        "prob_pct": 2
+      }
+    ]
+  },
+  "counts": {
+    "high_risk": 0,
+    "medium_risk": 47,
+    "low_risk": 21,
+    "total_monitored": 68
+  },
+  "top_alerts": [
+    {
+      "name": "Simchuthang",
+      "risk_level": "Medium",
+      "risk_score": 55.9,
+      "slope_deg": 41.1,
+      "rationale": "Moderate Risk Alert: Possible localized slope slumping and road debris. Monitor access routes."
+    },
+    {
+      "name": "Sangkalang",
+      "risk_level": "Medium",
+      "risk_score": 55.9,
+      "slope_deg": 36.4,
+      "rationale": "Moderate Risk Alert: Possible localized slope slumping and road debris. Monitor access routes."
+    },
+    {
+      "name": "Kyangsala",
+      "risk_level": "Medium",
+      "risk_score": 55.9,
+      "slope_deg": 35.7,
+      "rationale": "Moderate Risk Alert: Possible localized slope slumping and road debris. Monitor access routes."
+    },
+    {
+      "name": "Lingzya",
+      "risk_level": "Medium",
+      "risk_score": 53.4,
+      "slope_deg": 32.4,
+      "rationale": "Moderate Risk Alert: Possible localized slope slumping and road debris. Monitor access routes."
+    },
+    {
+      "name": "Burd\u0101ng",
+      "risk_level": "Medium",
+      "risk_score": 49.0,
+      "slope_deg": 28.0,
+      "rationale": "Moderate Risk Alert: Possible localized slope slumping and road debris. Monitor access routes."
+    },
+    {
+      "name": "Nanga",
+      "risk_level": "Medium",
+      "risk_score": 48.9,
+      "slope_deg": 28.0,
+      "rationale": "Moderate Risk Alert: Possible localized slope slumping and road debris. Monitor access routes."
+    },
+    {
+      "name": "Gnon",
+      "risk_level": "Medium",
+      "risk_score": 48.9,
+      "slope_deg": 27.9,
+      "rationale": "Moderate Risk Alert: Possible localized slope slumping and road debris. Monitor access routes."
+    },
+    {
+      "name": "Yangang",
+      "risk_level": "Medium",
+      "risk_score": 48.8,
+      "slope_deg": 27.8,
+      "rationale": "Moderate Risk Alert: Possible localized slope slumping and road debris. Monitor access routes."
+    },
+    {
+      "name": "Pabong",
+      "risk_level": "Medium",
+      "risk_score": 48.3,
+      "slope_deg": 27.3,
+      "rationale": "Moderate Risk Alert: Possible localized slope slumping and road debris. Monitor access routes."
+    },
+    {
+      "name": "Damthang",
+      "risk_level": "Medium",
+      "risk_score": 48.1,
+      "slope_deg": 27.1,
+      "rationale": "Moderate Risk Alert: Possible localized slope slumping and road debris. Monitor access routes."
+    }
+  ]
+}
