@@ -1,0 +1,6 @@
+   Satellite: Sentinel-1 (radar), VV, descending orbit
+   Area: Teesta valley, Sikkim (88.30, 27.15 to 88.75, 27.75)
+   Pre-event: 15 Sep to 2 Oct 2023 (4 scenes)
+   Post-event: 5 to 15 Oct 2023 (2 scenes)
+   Terrain: SRTM 30 m
+   Source: Google Earth Engine
