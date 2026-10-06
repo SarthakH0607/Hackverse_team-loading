@@ -110,22 +110,24 @@ export const ResponderDashboard: React.FC = () => {
       <header className="bg-neutral-950 border-b border-neutral-800/80 px-4 py-2.5 flex flex-wrap items-center justify-between gap-y-3 z-30 font-mono">
         {/* Brand & Sector */}
         <div className="flex items-center space-x-3">
-          <div className="w-8 h-8 rounded bg-red-600/20 border border-red-500/40 flex items-center justify-center shadow-inner">
-            <Radio className="w-4 h-4 text-red-500 animate-pulse" />
-          </div>
-          <div>
-            <div className="flex items-center space-x-2">
-              <span className="font-extrabold tracking-wider text-sm sm:text-base text-neutral-100">
-                EPICENTER
-              </span>
-              <span className="hidden sm:inline-block px-1.5 py-0.2 rounded bg-neutral-900 border border-neutral-800 text-[10px] text-neutral-400 font-semibold">
-                v2.4-SAR
-              </span>
+          <Link to="/" className="flex items-center space-x-2.5 group cursor-pointer" title="Back to Overview">
+            <div className="w-8 h-8 rounded bg-red-600/20 border border-red-500/40 flex items-center justify-center shadow-inner group-hover:scale-105 transition-transform">
+              <Radio className="w-4 h-4 text-red-500 animate-pulse" />
             </div>
-            <div className="text-[10px] tracking-tight text-neutral-400 hidden xs:block">
-              CHANGE INTEL // RESPONDER CONSOLE
+            <div>
+              <div className="flex items-center space-x-2">
+                <span className="font-extrabold tracking-wider text-sm sm:text-base text-neutral-100 group-hover:text-white transition-colors">
+                  EPICENTER
+                </span>
+                <span className="hidden sm:inline-block px-1.5 py-0.2 rounded bg-neutral-900 border border-neutral-800 text-[10px] text-neutral-400 font-semibold">
+                  v2.4-SAR
+                </span>
+              </div>
+              <div className="text-[10px] tracking-tight text-neutral-400 hidden xs:block">
+                CHANGE INTEL // RESPONDER CONSOLE
+              </div>
             </div>
-          </div>
+          </Link>
 
           <div className="h-5 w-px bg-neutral-800 hidden md:block" />
 
@@ -150,6 +152,15 @@ export const ResponderDashboard: React.FC = () => {
 
         {/* Right Navigation & Tools */}
         <div className="flex items-center space-x-2 text-xs">
+          {/* Link to Home Landing */}
+          <Link
+            to="/"
+            className="flex items-center space-x-1 bg-neutral-900 hover:bg-neutral-800 text-neutral-300 hover:text-white border border-neutral-800 px-2.5 py-1.5 rounded text-xs transition-colors"
+            title="Overview & Landing Page"
+          >
+            <span>Overview</span>
+          </Link>
+
           {/* Quick link to Mobile Citizen Mode */}
           <Link
             to="/citizen"
@@ -288,6 +299,45 @@ export const ResponderDashboard: React.FC = () => {
           >
             {/* Visual GIS simulation background */}
             <div className="absolute inset-0 opacity-40 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-blue-950/30 via-[#07090e] to-black" />
+
+            {/* Real Sentinel-1 SAR Radar Imagery Dual-Split Layer */}
+            <div className="absolute inset-0 pointer-events-none overflow-hidden opacity-45 mix-blend-screen">
+              {/* Pre-event baseline radar */}
+              <div
+                className="absolute inset-0 transition-[clip-path] duration-75"
+                style={{
+                  clipPath: isSplitEngaged ? `polygon(0 0, ${sliderValue}% 0, ${sliderValue}% 100%, 0 100%)` : undefined,
+                }}
+              >
+                <img
+                  src="/data/pre.png"
+                  alt="Sentinel-1 Pre-event Baseline"
+                  className="w-full h-full object-cover filter contrast-150 brightness-90 grayscale"
+                />
+                <div className="absolute top-14 left-4 font-mono text-[9px] text-neutral-400 bg-neutral-950/80 px-2 py-0.5 rounded border border-neutral-800">
+                  SEP 2023 // PRE-EVENT SAR BASELINE
+                </div>
+              </div>
+
+              {/* Post-event flood extent & change overlay */}
+              {isSplitEngaged && (
+                <div
+                  className="absolute inset-0 transition-[clip-path] duration-75"
+                  style={{
+                    clipPath: `polygon(${sliderValue}% 0, 100% 0, 100% 100%, ${sliderValue}% 100%)`,
+                  }}
+                >
+                  <img
+                    src={layers.changeActive ? "/data/change_overlay.png" : "/data/post.png"}
+                    alt="Sentinel-1 Post-event SAR Change"
+                    className="w-full h-full object-cover filter contrast-150 brightness-95"
+                  />
+                  <div className="absolute top-14 right-4 font-mono text-[9px] text-red-400 bg-neutral-950/80 px-2 py-0.5 rounded border border-red-900/60">
+                    OCT 2023 // POST-EVENT SURGE DELTA
+                  </div>
+                </div>
+              )}
+            </div>
 
             {/* Simulated River Vector Path & Flood Envelope */}
             <svg

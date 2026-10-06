@@ -1,6 +1,6 @@
 import React from "react"
 import { VillageFeature } from "@/lib/data"
-import { Users, AlertTriangle, ShieldCheck, ChevronRight, Activity, Radio } from "lucide-react"
+import { Users, AlertTriangle, ShieldCheck, ChevronRight, Activity, Radio, Hospital, Route } from "lucide-react"
 
 interface RankedCardProps {
   feature: VillageFeature
@@ -14,7 +14,14 @@ export const RankedCard: React.FC<RankedCardProps> = ({
   onSelect,
 }) => {
   const p = feature.properties
-  const priority = p.priority || (p.score > 0.9 ? "CRITICAL" : p.score > 0.75 ? "HIGH" : p.score > 0.6 ? "ELEVATED" : p.score > 0.4 ? "MONITORED" : "STABLE")
+
+  // Priority based on ranking and relative severity
+  const priority = p.priority || (
+    p.rank <= 3 ? "CRITICAL" :
+    p.rank <= 10 ? "HIGH" :
+    p.rank <= 25 ? "ELEVATED" :
+    p.rank <= 45 ? "MONITORED" : "STABLE"
+  )
 
   const getPriorityBadge = () => {
     switch (priority) {
@@ -59,6 +66,23 @@ export const RankedCard: React.FC<RankedCardProps> = ({
 
   const badgeStyle = getPriorityBadge()
 
+  // Extract metrics from reason string
+  const hospitalRaw = p.reason?.match(/nearest unaffected hospital\s*([\d.]+\s*km away)/i) || p.reason?.match(/([\d.]+\s*km to nearest hospital)/i)
+  const hospitalText = hospitalRaw ? (hospitalRaw[1] || hospitalRaw[0]) : null
+
+  const impactRaw = p.reason?.match(/([\d.]+%\s*of area changed)/i) || p.reason?.match(/([\d.]+%\s*area affected)/i)
+  const impactText = impactRaw ? (impactRaw[1] || impactRaw[0]) : null
+
+  const roadRaw = p.reason?.match(/(access roads mostly blocked|some access road blocked|roads accessible)/i)
+  const roadText = p.roadStatus || (roadRaw ? roadRaw[1] : null)
+
+  const formatScoreDisplay = () => {
+    if (p.confidence) return p.confidence
+    if (p.score > 100) return `Score ${Math.round(p.score).toLocaleString()}`
+    if (p.score > 1) return `Score ${p.score.toFixed(1)}`
+    return `${Math.round(p.score * 100)}% index`
+  }
+
   return (
     <div
       onClick={() => onSelect?.(feature)}
@@ -99,10 +123,15 @@ export const RankedCard: React.FC<RankedCardProps> = ({
         <span className="text-neutral-300 font-medium">
           {p.population.toLocaleString()} civilians
         </span>
-        {p.region && (
+        {p.region ? (
           <>
             <span className="text-neutral-600">•</span>
             <span className="text-neutral-400 truncate">{p.region}</span>
+          </>
+        ) : (
+          <>
+            <span className="text-neutral-600">•</span>
+            <span className="text-neutral-400 text-[10px]">{formatScoreDisplay()}</span>
           </>
         )}
       </div>
@@ -113,24 +142,36 @@ export const RankedCard: React.FC<RankedCardProps> = ({
       </p>
 
       {/* Key Surge / Infrastructure Metrics */}
-      {(p.waterSurgeDelta || p.roadStatus || p.isolatedCount) && (
+      {(p.waterSurgeDelta || impactText || hospitalText || roadText || p.isolatedCount) && (
         <div className="grid grid-cols-2 gap-1.5 bg-neutral-900/80 p-2 rounded border border-neutral-800/80 text-[10px] mb-2.5 ml-1">
-          {p.waterSurgeDelta && (
+          {p.waterSurgeDelta ? (
             <div>
               <span className="text-neutral-400 block text-[9px]">WATER SURGE:</span>
               <span className="text-red-400 font-bold">{p.waterSurgeDelta}</span>
             </div>
-          )}
-          {p.isolatedCount && (
+          ) : impactText ? (
+            <div>
+              <span className="text-neutral-400 block text-[9px]">FLOOD IMPACT:</span>
+              <span className="text-amber-400 font-bold">{impactText}</span>
+            </div>
+          ) : null}
+
+          {p.isolatedCount ? (
             <div>
               <span className="text-neutral-400 block text-[9px]">CASUALTY EST:</span>
               <span className="text-amber-400 font-medium">{p.isolatedCount}</span>
             </div>
-          )}
-          {p.roadStatus && (
+          ) : hospitalText ? (
+            <div>
+              <span className="text-neutral-400 block text-[9px]">HOSPITAL DIST:</span>
+              <span className="text-neutral-200 font-medium truncate block">{hospitalText}</span>
+            </div>
+          ) : null}
+
+          {roadText && (
             <div className="col-span-2 pt-1 border-t border-neutral-800 text-[10px] flex items-center justify-between">
-              <span className="text-neutral-400">INFRASTRUCTURE:</span>
-              <span className="text-neutral-200 font-medium">{p.roadStatus}</span>
+              <span className="text-neutral-400">ACCESS ROADS:</span>
+              <span className="text-neutral-200 font-medium capitalize">{roadText}</span>
             </div>
           )}
         </div>
@@ -140,7 +181,7 @@ export const RankedCard: React.FC<RankedCardProps> = ({
       <div className="flex items-center justify-between text-[10px] text-neutral-400 pt-1 border-t border-neutral-900 pl-1">
         <div className="flex items-center space-x-1.5">
           <span className="inline-block w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
-          <span>{p.confidence || `${Math.round(p.score * 100)}% confidence`}</span>
+          <span>{formatScoreDisplay()}</span>
         </div>
 
         <div className="flex items-center space-x-1 text-neutral-400 group-hover:text-neutral-200">

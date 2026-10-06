@@ -1,4 +1,5 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom'
+import { LandingPage } from './pages/LandingPage'
 import { ResponderDashboard } from './pages/ResponderDashboard'
 import { CitizenMode } from './pages/CitizenMode'
 
@@ -6,13 +7,17 @@ export function App() {
   return (
     <Router>
       <Routes>
-        {/* Responder Dashboard (Desktop) */}
-        <Route path="/" element={<ResponderDashboard />} />
+        {/* Landing Page (Overview & Portals) */}
+        <Route path="/" element={<LandingPage />} />
 
-        {/* Citizen Mode (Mobile-First) */}
+        {/* Responder Dashboard (Desktop Tactical GIS Console) */}
+        <Route path="/dashboard" element={<ResponderDashboard />} />
+        <Route path="/responder" element={<ResponderDashboard />} />
+
+        {/* Citizen Mode (Mobile-First Offline Survival & Triage) */}
         <Route path="/citizen" element={<CitizenMode />} />
 
-        {/* Catch all redirect to Responder Dashboard */}
+        {/* Fallback to Landing Page */}
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </Router>

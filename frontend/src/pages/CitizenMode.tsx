@@ -112,7 +112,7 @@ export const CitizenMode: React.FC = () => {
       <div className="w-full max-w-md bg-[#0a0c12] border-x border-neutral-800/80 min-h-screen flex flex-col relative pb-20 shadow-2xl">
         {/* Top App Header */}
         <header className="bg-neutral-950/95 border-b border-neutral-800/90 px-4 py-2.5 flex items-center justify-between sticky top-0 z-40 backdrop-blur-md font-mono">
-          <div className="flex items-center space-x-2">
+          <Link to="/" className="flex items-center space-x-2 cursor-pointer" title="Back to Overview">
             <Radio className="w-4 h-4 text-red-500 animate-pulse" />
             <span className="font-extrabold tracking-wider text-sm text-neutral-100">
               EPICENTER
@@ -121,12 +121,12 @@ export const CitizenMode: React.FC = () => {
               <WifiOff className="w-2.5 h-2.5" />
               <span>OFFLINE</span>
             </div>
-          </div>
+          </Link>
 
           <div className="flex items-center space-x-2.5 text-xs text-neutral-400">
             {/* Desktop Console Switcher */}
             <Link
-              to="/"
+              to="/dashboard"
               className="hidden xs:flex items-center space-x-1 px-2 py-1 rounded bg-neutral-900 border border-neutral-800 hover:border-neutral-700 text-neutral-300 text-[10px]"
               title="Open Desktop Console"
             >
